@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ContabilidadRouteImport } from './routes/contabilidad'
+import { Route as CronogramaRouteImport } from './routes/cronograma'
 import { Route as DocumentosRouteImport } from './routes/documentos'
 import { Route as FotografiasRouteImport } from './routes/fotografias'
 import { Route as PresupuestoRouteImport } from './routes/presupuesto'
@@ -24,6 +25,11 @@ const IndexRoute = IndexRouteImport.update({
 const ContabilidadRoute = ContabilidadRouteImport.update({
   id: '/contabilidad',
   path: '/contabilidad',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CronogramaRoute = CronogramaRouteImport.update({
+  id: '/cronograma',
+  path: '/cronograma',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DocumentosRoute = DocumentosRouteImport.update({
@@ -50,6 +56,7 @@ const ProyectosRoute = ProyectosRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/contabilidad': typeof ContabilidadRoute
+  '/cronograma': typeof CronogramaRoute
   '/documentos': typeof DocumentosRoute
   '/fotografias': typeof FotografiasRoute
   '/presupuesto': typeof PresupuestoRoute
@@ -58,6 +65,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/contabilidad': typeof ContabilidadRoute
+  '/cronograma': typeof CronogramaRoute
   '/documentos': typeof DocumentosRoute
   '/fotografias': typeof FotografiasRoute
   '/presupuesto': typeof PresupuestoRoute
@@ -67,6 +75,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/contabilidad': typeof ContabilidadRoute
+  '/cronograma': typeof CronogramaRoute
   '/documentos': typeof DocumentosRoute
   '/fotografias': typeof FotografiasRoute
   '/presupuesto': typeof PresupuestoRoute
@@ -77,6 +86,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/contabilidad'
+    | '/cronograma'
     | '/documentos'
     | '/fotografias'
     | '/presupuesto'
@@ -85,6 +95,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/contabilidad'
+    | '/cronograma'
     | '/documentos'
     | '/fotografias'
     | '/presupuesto'
@@ -93,6 +104,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/contabilidad'
+    | '/cronograma'
     | '/documentos'
     | '/fotografias'
     | '/presupuesto'
@@ -102,6 +114,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ContabilidadRoute: typeof ContabilidadRoute
+  CronogramaRoute: typeof CronogramaRoute
   DocumentosRoute: typeof DocumentosRoute
   FotografiasRoute: typeof FotografiasRoute
   PresupuestoRoute: typeof PresupuestoRoute
@@ -122,6 +135,13 @@ declare module '@tanstack/react-router' {
       path: '/contabilidad'
       fullPath: '/contabilidad'
       preLoaderRoute: typeof ContabilidadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cronograma': {
+      id: '/cronograma'
+      path: '/cronograma'
+      fullPath: '/cronograma'
+      preLoaderRoute: typeof CronogramaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/documentos': {
@@ -158,6 +178,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ContabilidadRoute: ContabilidadRoute,
+  CronogramaRoute: CronogramaRoute,
   DocumentosRoute: DocumentosRoute,
   FotografiasRoute: FotografiasRoute,
   PresupuestoRoute: PresupuestoRoute,
