@@ -120,17 +120,17 @@ function ProyectosPage() {
 
   const errores = useMemo(() => {
     const e: Record<string, string> = {};
-    if (!form.codigo.trim()) e.codigo = "El código es obligatorio.";
-    if (form.nombre.trim().length < 5) e.nombre = "Mínimo 5 caracteres.";
-    if (!form.entidad.trim()) e.entidad = "Indique la entidad contratante.";
-    if (!form.empresa.trim()) e.empresa = "Indique la empresa contratista.";
-    if (!form.responsable.trim()) e.responsable = "Indique el ingeniero responsable.";
+    if (!form.codigo.trim()) e["codigo"] = "El código es obligatorio.";
+    if (form.nombre.trim().length < 5) e["nombre"] = "Mínimo 5 caracteres.";
+    if (!form.entidad.trim()) e["entidad"] = "Indique la entidad contratante.";
+    if (!form.empresa.trim()) e["empresa"] = "Indique la empresa contratista.";
+    if (!form.responsable.trim()) e["responsable"] = "Indique el ingeniero responsable.";
     if (!form.presupuesto || Number(form.presupuesto) <= 0)
-      e.presupuesto = "Monto mayor a cero.";
-    if (!form.fechaInicio) e.fechaInicio = "Requerida.";
-    if (!form.fechaFinal) e.fechaFinal = "Requerida.";
+      e["presupuesto"] = "Monto mayor a cero.";
+    if (!form.fechaInicio) e["fechaInicio"] = "Requerida.";
+    if (!form.fechaFinal) e["fechaFinal"] = "Requerida.";
     if (form.fechaInicio && form.fechaFinal && form.fechaFinal <= form.fechaInicio)
-      e.fechaFinal = "Debe ser posterior a la fecha de inicio.";
+      e["fechaFinal"] = "Debe ser posterior a la fecha de inicio.";
     return e;
   }, [form]);
 
@@ -470,7 +470,7 @@ export function Field({
   full,
 }: {
   label: string;
-  error?: string;
+  error?: string | undefined;
   children: React.ReactNode;
   full?: boolean;
 }) {
