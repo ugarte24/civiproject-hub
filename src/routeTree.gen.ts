@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ContabilidadRouteImport } from './routes/contabilidad'
+import { Route as DocumentosRouteImport } from './routes/documentos'
 import { Route as PresupuestoRouteImport } from './routes/presupuesto'
 import { Route as ProyectosRouteImport } from './routes/proyectos'
 
@@ -22,6 +23,11 @@ const IndexRoute = IndexRouteImport.update({
 const ContabilidadRoute = ContabilidadRouteImport.update({
   id: '/contabilidad',
   path: '/contabilidad',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocumentosRoute = DocumentosRouteImport.update({
+  id: '/documentos',
+  path: '/documentos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PresupuestoRoute = PresupuestoRouteImport.update({
@@ -38,12 +44,14 @@ const ProyectosRoute = ProyectosRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/contabilidad': typeof ContabilidadRoute
+  '/documentos': typeof DocumentosRoute
   '/presupuesto': typeof PresupuestoRoute
   '/proyectos': typeof ProyectosRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/contabilidad': typeof ContabilidadRoute
+  '/documentos': typeof DocumentosRoute
   '/presupuesto': typeof PresupuestoRoute
   '/proyectos': typeof ProyectosRoute
 }
@@ -51,20 +59,29 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/contabilidad': typeof ContabilidadRoute
+  '/documentos': typeof DocumentosRoute
   '/presupuesto': typeof PresupuestoRoute
   '/proyectos': typeof ProyectosRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/contabilidad' | '/presupuesto' | '/proyectos'
+  fullPaths:
+    '/' | '/contabilidad' | '/documentos' | '/presupuesto' | '/proyectos'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/contabilidad' | '/presupuesto' | '/proyectos'
-  id: '__root__' | '/' | '/contabilidad' | '/presupuesto' | '/proyectos'
+  to: '/' | '/contabilidad' | '/documentos' | '/presupuesto' | '/proyectos'
+  id:
+    | '__root__'
+    | '/'
+    | '/contabilidad'
+    | '/documentos'
+    | '/presupuesto'
+    | '/proyectos'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ContabilidadRoute: typeof ContabilidadRoute
+  DocumentosRoute: typeof DocumentosRoute
   PresupuestoRoute: typeof PresupuestoRoute
   ProyectosRoute: typeof ProyectosRoute
 }
@@ -83,6 +100,13 @@ declare module '@tanstack/react-router' {
       path: '/contabilidad'
       fullPath: '/contabilidad'
       preLoaderRoute: typeof ContabilidadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/documentos': {
+      id: '/documentos'
+      path: '/documentos'
+      fullPath: '/documentos'
+      preLoaderRoute: typeof DocumentosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/presupuesto': {
@@ -105,6 +129,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ContabilidadRoute: ContabilidadRoute,
+  DocumentosRoute: DocumentosRoute,
   PresupuestoRoute: PresupuestoRoute,
   ProyectosRoute: ProyectosRoute,
 }
