@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApuRouteImport } from './routes/apu'
+import { Route as ConfiguracionRouteImport } from './routes/configuracion'
 import { Route as ContabilidadRouteImport } from './routes/contabilidad'
 import { Route as CronogramaRouteImport } from './routes/cronograma'
 import { Route as DocumentosRouteImport } from './routes/documentos'
@@ -28,6 +29,11 @@ const IndexRoute = IndexRouteImport.update({
 const ApuRoute = ApuRouteImport.update({
   id: '/apu',
   path: '/apu',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfiguracionRoute = ConfiguracionRouteImport.update({
+  id: '/configuracion',
+  path: '/configuracion',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ContabilidadRoute = ContabilidadRouteImport.update({
@@ -74,6 +80,7 @@ const UsuariosRoute = UsuariosRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/apu': typeof ApuRoute
+  '/configuracion': typeof ConfiguracionRoute
   '/contabilidad': typeof ContabilidadRoute
   '/cronograma': typeof CronogramaRoute
   '/documentos': typeof DocumentosRoute
@@ -86,6 +93,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/apu': typeof ApuRoute
+  '/configuracion': typeof ConfiguracionRoute
   '/contabilidad': typeof ContabilidadRoute
   '/cronograma': typeof CronogramaRoute
   '/documentos': typeof DocumentosRoute
@@ -99,6 +107,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/apu': typeof ApuRoute
+  '/configuracion': typeof ConfiguracionRoute
   '/contabilidad': typeof ContabilidadRoute
   '/cronograma': typeof CronogramaRoute
   '/documentos': typeof DocumentosRoute
@@ -113,6 +122,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/apu'
+    | '/configuracion'
     | '/contabilidad'
     | '/cronograma'
     | '/documentos'
@@ -125,6 +135,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/apu'
+    | '/configuracion'
     | '/contabilidad'
     | '/cronograma'
     | '/documentos'
@@ -137,6 +148,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/apu'
+    | '/configuracion'
     | '/contabilidad'
     | '/cronograma'
     | '/documentos'
@@ -150,6 +162,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApuRoute: typeof ApuRoute
+  ConfiguracionRoute: typeof ConfiguracionRoute
   ContabilidadRoute: typeof ContabilidadRoute
   CronogramaRoute: typeof CronogramaRoute
   DocumentosRoute: typeof DocumentosRoute
@@ -174,6 +187,13 @@ declare module '@tanstack/react-router' {
       path: '/apu'
       fullPath: '/apu'
       preLoaderRoute: typeof ApuRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/configuracion': {
+      id: '/configuracion'
+      path: '/configuracion'
+      fullPath: '/configuracion'
+      preLoaderRoute: typeof ConfiguracionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/contabilidad': {
@@ -238,6 +258,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApuRoute: ApuRoute,
+  ConfiguracionRoute: ConfiguracionRoute,
   ContabilidadRoute: ContabilidadRoute,
   CronogramaRoute: CronogramaRoute,
   DocumentosRoute: DocumentosRoute,
