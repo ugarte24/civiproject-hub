@@ -5,7 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * SIGEPROC design system — professional civil-engineering console.
+ * SIGOC design system — professional civil-engineering console.
  * Deep navy structure + technical blue primary + amber "obra" accent.
  * All colors in oklch, exposed as semantic tokens only.
  */
@@ -186,6 +186,26 @@
 @utility stat-value {
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 1.75rem;
+  font-size: 1.45rem;
   line-height: 1.1;
+
+  @media (min-width: 640px) {
+    font-size: 1.75rem;
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    overflow-x: hidden;
+  }
+
+  #root,
+  #app {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
 }

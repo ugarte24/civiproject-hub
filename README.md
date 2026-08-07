@@ -2,7 +2,7 @@
 
 PRD (Product Requirements Document)
 
-Sistema Web de Gestión y Control de Proyectos Civiles (SIGEPROC)
+Sistema Web de Gestión y Control de Proyectos Civiles (SIGOC)
 
 Versión: 1.0
 Fecha: Agosto 2026
@@ -11,11 +11,11 @@ Fecha: Agosto 2026
 
 Nombre del sistema
 
-SIGEPROC (Sistema de Gestión de Proyectos Civiles)
+SIGOC (Sistema de Gestión de Proyectos Civiles)
 
 Descripción
 
-SIGEPROC es una aplicación web diseñada para administrar y controlar proyectos de construcción de manera centralizada. Permitirá registrar información técnica, económica y administrativa de cada proyecto, almacenar documentos, controlar presupuestos, realizar seguimiento al avance físico y financiero y gestionar los usuarios mediante permisos por roles.
+SIGOC es una aplicación web diseñada para administrar y controlar proyectos de construcción de manera centralizada. Permitirá registrar información técnica, económica y administrativa de cada proyecto, almacenar documentos, controlar presupuestos, realizar seguimiento al avance físico y financiero y gestionar los usuarios mediante permisos por roles.
 
 El sistema será accesible desde computadoras, tablets y teléfonos móviles, permitiendo que ingenieros, administradores, supervisores y personal de contabilidad trabajen sobre una misma plataforma con acceso únicamente a la información autorizada.
 

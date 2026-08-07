@@ -23,18 +23,19 @@ import {
 } from "@/components/ui/select";
 import { PageHeader, AccesoDenegado } from "@/components/AppShell";
 import { Field } from "@/components/Field";
+import { DateInput } from "@/components/DateInput";
 import { useStore, usePermisos, fecha } from "@/lib/store";
 
 export const Route = createFileRoute("/fotografias")({
   head: () => ({
     meta: [
-      { title: "Fotografías de avance de obra — SIGEPROC" },
+      { title: "Fotografías de avance de obra — SIGOC" },
       {
         name: "description",
         content:
           "Galería fotográfica del avance de obra con fecha, ubicación, autor y descripción por proyecto.",
       },
-      { property: "og:title", content: "Fotografías — SIGEPROC" },
+      { property: "og:title", content: "Fotografías — SIGOC" },
       {
         property: "og:description",
         content: "Registro visual del avance físico de cada proyecto civil.",
@@ -172,10 +173,9 @@ function FotografiasPage() {
               </Select>
             </Field>
             <Field label="Fecha" error={touched ? errores["fecha"] : undefined}>
-              <Input
-                type="date"
+              <DateInput
                 value={form.fecha}
-                onChange={(e) => setForm((f) => ({ ...f, fecha: e.target.value }))}
+                onChange={(v) => setForm((f) => ({ ...f, fecha: v }))}
               />
             </Field>
             <Field label="Ubicación">

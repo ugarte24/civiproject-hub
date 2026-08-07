@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard,
   FolderKanban,
@@ -14,22 +14,21 @@ import {
   Settings,
   HardHat,
   Menu,
-  Bell,
   Search,
   ShieldCheck,
+  LogOut,
+  Shield,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useStore, usePermisos, type Role } from "@/lib/store";
+import { usePermisos } from "@/lib/store";
+import { useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
+import { SubscriptionBanner } from "@/components/SubscriptionBanner";
+import { getAppFooterLabel } from "@/lib/app-version";
 
 const nav = [
   { key: "dashboard", to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -45,138 +44,242 @@ const nav = [
   { key: "configuracion", to: "/configuracion", label: "Configuración", icon: Settings },
 ] as const;
 
-const roles: Role[] = [
-  "Administrador",
-  "Ingeniero Residente",
-  "Supervisor",
-  "Contabilidad",
-  "Consulta",
-];
-
 function NavList({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { puedeVer } = usePermisos();
+  const { isSuperAdmin } = useAuth();
 
   return (
     <nav className="flex flex-col gap-1 px-3 py-4">
-      {nav.map((item) => {
-        const visible = puedeVer(item.key);
-        const active = pathname === item.to;
-        if (!visible)
-          return (
-            <div
-              key={item.key}
-              className="flex cursor-not-allowed items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground/35"
-              title="Sin permiso para este módulo"
-            >
-              <item.icon className="size-4" />
-              <span className="flex-1">{item.label}</span>
-              <ShieldCheck className="size-3.5" />
-            </div>
-          );
-        return (
-          <Link
-            key={item.key}
-            to={item.to}
-            onClick={onNavigate}
-            className={cn(
-              "group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all",
-              active
-                ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-[inset_3px_0_0_0_var(--sidebar-primary)]"
-                : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
-            )}
-          >
-            <item.icon
-              className={cn(
-                "size-4 transition-colors",
-                active ? "text-sidebar-primary" : "text-sidebar-foreground/60",
-              )}
-            />
-            {item.label}
-          </Link>
-        );
-      })}
+      {isSuperAdmin ? (
+        <Link
+          to="/admin"
+          onClick={onNavigate}
+          className={cn(
+            "group flex min-w-0 items-center gap-3 rounded-md border px-3 py-2.5 text-sm font-semibold transition-all",
+            pathname === "/admin"
+              ? "border-sidebar-primary bg-sidebar-accent text-sidebar-accent-foreground"
+              : "border-sidebar-primary/50 text-sidebar-primary hover:bg-sidebar-accent/60",
+          )}
+        >
+          <Shield className="size-4 shrink-0" />
+          <span className="truncate">Panel SaaS</span>
+        </Link>
+      ) : (
+        nav
+          .filter((item) => puedeVer(item.key))
+          .map((item) => {
+            const active = pathname === item.to;
+            return (
+              <Link
+                key={item.key}
+                to={item.to}
+                onClick={onNavigate}
+                className={cn(
+                  "group flex min-w-0 items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-all active:scale-[0.99]",
+                  active
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-[inset_3px_0_0_0_var(--sidebar-primary)]"
+                    : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
+                )}
+              >
+                <item.icon
+                  className={cn(
+                    "size-4 shrink-0 transition-colors",
+                    active ? "text-sidebar-primary" : "text-sidebar-foreground/60",
+                  )}
+                />
+                <span className="truncate">{item.label}</span>
+              </Link>
+            );
+          })
+      )}
     </nav>
   );
 }
 
-function Brand() {
+function Brand({ className }: { className?: string }) {
   return (
-    <div className="flex items-center gap-3 border-b border-sidebar-border px-5 py-4">
-      <div className="accent-surface grid size-10 place-items-center rounded-md">
+    <div
+      className={cn(
+        "flex items-center gap-3 border-b border-sidebar-border px-5 py-4",
+        className,
+      )}
+    >
+      <div className="accent-surface grid size-10 shrink-0 place-items-center rounded-md">
         <HardHat className="size-5" />
       </div>
-      <div className="leading-tight">
+      <div className="min-w-0 leading-tight">
         <p className="font-display text-lg font-semibold tracking-wide text-sidebar-accent-foreground">
-          SIGEPROC
+          SIGOC
         </p>
-        <p className="text-[11px] text-sidebar-foreground/60">Gestión de Proyectos Civiles</p>
+        <p className="truncate text-[11px] text-sidebar-foreground/60">
+          Gestión de Proyectos Civiles
+        </p>
       </div>
     </div>
   );
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { role, setRole, usuarios } = useStore();
+  const { role } = usePermisos();
+  const { profile, isSuperAdmin } = useAuth();
   const [open, setOpen] = useState(false);
-  const perfil = usuarios.find((u) => u.rol === role);
+  const [cerrando, setCerrando] = useState(false);
+  const navigate = useNavigate();
+
+  const cerrarSesion = async () => {
+    setCerrando(true);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      toast.success("Sesión cerrada");
+      void navigate({ to: "/login" });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "No se pudo cerrar la sesión";
+      toast.error(msg);
+    } finally {
+      setCerrando(false);
+    }
+  };
 
   return (
-    <div className="flex min-h-screen w-full bg-background">
-      <aside className="hidden w-64 shrink-0 flex-col bg-sidebar lg:flex">
+    <div className="flex min-h-dvh w-full max-w-[100vw] overflow-x-hidden bg-background">
+      <div className="hidden w-64 shrink-0 lg:block" aria-hidden />
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col overflow-hidden bg-sidebar lg:flex">
         <Brand />
-        <div className="flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
           <NavList />
         </div>
-        <div className="border-t border-sidebar-border px-5 py-4 text-[11px] text-sidebar-foreground/50">
-          SIGEPROC v1.0 · Agosto 2026
+        <div className="shrink-0 space-y-3 border-t border-sidebar-border px-4 py-4">
+          <Button
+            variant="ghost"
+            className="w-full justify-start gap-2 text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+            disabled={cerrando}
+            onClick={() => void cerrarSesion()}
+          >
+            <LogOut className="size-4 shrink-0" />
+            <span className="truncate">{cerrando ? "Cerrando…" : "Cerrar sesión"}</span>
+          </Button>
+          <p className="px-1 text-[11px] text-sidebar-foreground/50">{getAppFooterLabel()}</p>
         </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-card/85 px-4 backdrop-blur lg:px-6">
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-card/90 px-3 backdrop-blur sm:h-16 sm:gap-3 sm:px-4 lg:px-6">
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="lg:hidden">
+              <Button variant="ghost" size="icon" className="shrink-0 lg:hidden">
                 <Menu className="size-5" />
+                <span className="sr-only">Abrir menú</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-72 border-sidebar-border bg-sidebar p-0">
-              <Brand />
-              <NavList onNavigate={() => setOpen(false)} />
+            <SheetContent
+              side="left"
+              className="flex h-full w-[min(100vw-2.5rem,18rem)] flex-col gap-0 border-sidebar-border bg-sidebar p-0 text-sidebar-foreground"
+            >
+              <Brand className="pr-12" />
+              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+                <NavList onNavigate={() => setOpen(false)} />
+              </div>
+              <div className="shrink-0 border-t border-sidebar-border px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                <div className="mb-3 px-1">
+                  <p className="truncate text-sm font-medium text-sidebar-accent-foreground">
+                    {profile?.nombre ?? "Usuario"}
+                  </p>
+                  <p className="truncate text-[11px] text-sidebar-foreground/60">
+                    {isSuperAdmin ? "SuperAdmin" : role}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start gap-2 text-sidebar-foreground/80"
+                  disabled={cerrando}
+                  onClick={() => {
+                    setOpen(false);
+                    void cerrarSesion();
+                  }}
+                >
+                  <LogOut className="size-4" />
+                  {cerrando ? "Cerrando…" : "Cerrar sesión"}
+                </Button>
+              </div>
             </SheetContent>
           </Sheet>
 
-          <div className="relative hidden max-w-sm flex-1 md:block">
-            <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Buscar proyecto, documento o factura…" className="bg-background pl-9" />
+          <div className="flex min-w-0 items-center gap-2 lg:hidden">
+            <div className="accent-surface grid size-8 shrink-0 place-items-center rounded-md">
+              <HardHat className="size-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-display text-base font-semibold leading-none tracking-wide">
+                SIGOC
+              </p>
+              <p className="truncate text-[10px] text-muted-foreground">
+                {isSuperAdmin ? "SuperAdmin" : role}
+              </p>
+            </div>
           </div>
 
-          <div className="ml-auto flex items-center gap-2 sm:gap-3">
-            <div className="hidden text-right sm:block">
-              <p className="label-kicker">Rol activo</p>
-              <p className="text-xs font-medium text-foreground">{perfil?.nombre ?? "Usuario demo"}</p>
+          <div className="relative hidden max-w-sm flex-1 md:block">
+            {isSuperAdmin ? null : (
+              <>
+                <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar proyecto, documento o factura…"
+                  className="bg-background pl-9"
+                />
+              </>
+            )}
+          </div>
+
+          <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-3">
+            {isSuperAdmin ? (
+              <Button
+                variant="default"
+                size="sm"
+                className="hidden gap-1.5 sm:inline-flex"
+                onClick={() => void navigate({ to: "/admin" })}
+              >
+                <Shield className="size-4" />
+                SaaS
+              </Button>
+            ) : null}
+            <div className="hidden text-right md:block">
+              <p className="max-w-[160px] truncate text-xs font-medium text-foreground">
+                {profile?.nombre ?? "Usuario"}
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                {isSuperAdmin ? "SuperAdmin" : role}
+              </p>
             </div>
-            <Select value={role} onValueChange={(v) => setRole(v as Role)}>
-              <SelectTrigger className="w-[170px] bg-background">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {roles.map((r) => (
-                  <SelectItem key={r} value={r}>
-                    {r}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button variant="outline" size="icon" className="relative">
-              <Bell className="size-4" />
-              <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-accent" />
+            <Button
+              variant="outline"
+              size="icon"
+              className="sm:hidden"
+              disabled={cerrando}
+              onClick={() => void cerrarSesion()}
+              title="Cerrar sesión"
+            >
+              <LogOut className="size-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="hidden gap-2 sm:inline-flex"
+              disabled={cerrando}
+              onClick={() => void cerrarSesion()}
+              title="Cerrar sesión"
+            >
+              <LogOut className="size-4" />
+              <span>{cerrando ? "Cerrando…" : "Salir"}</span>
             </Button>
           </div>
         </header>
 
-        <main className="flex-1 px-4 py-6 lg:px-8 lg:py-8">{children}</main>
+        <main className="min-w-0 flex-1 overflow-x-hidden pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <SubscriptionBanner />
+          <div className="px-3 py-4 sm:px-4 sm:py-6 lg:px-8 lg:py-8">{children}</div>
+        </main>
       </div>
     </div>
   );
@@ -194,33 +297,39 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-      <div>
+    <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-4">
+      <div className="min-w-0">
         <p className="label-kicker">{kicker}</p>
-        <h1 className="text-3xl font-semibold text-foreground">{title}</h1>
+        <h1 className="text-2xl font-semibold text-foreground sm:text-3xl">{title}</h1>
         {description ? (
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{description}</p>
         ) : null}
       </div>
-      {action}
+      {action ? <div className="w-full shrink-0 sm:w-auto [&>*]:w-full sm:[&>*]:w-auto">{action}</div> : null}
     </div>
   );
 }
 
 export function AccesoDenegado({ modulo }: { modulo: string }) {
-  const { role } = useStore();
+  const { role } = usePermisos();
+  const { isSuperAdmin } = useAuth();
   return (
-    <div className="panel mx-auto max-w-lg p-10 text-center">
+    <div className="panel mx-auto max-w-lg p-6 text-center sm:p-10">
       <div className="mx-auto grid size-12 place-items-center rounded-full bg-destructive/10 text-destructive">
         <ShieldCheck className="size-6" />
       </div>
       <h2 className="mt-4 text-xl font-semibold">Acceso restringido</h2>
       <p className="mt-2 text-sm text-muted-foreground">
-        El rol <strong>{role}</strong> no tiene permisos para el módulo{" "}
-        <strong>{modulo}</strong>. Solicite autorización al Administrador del sistema.
+        El rol <strong>{isSuperAdmin ? "SuperAdmin" : role}</strong> no tiene permisos para el módulo{" "}
+        <strong>{modulo}</strong>.
+        {isSuperAdmin
+          ? " El SuperAdmin solo gestiona clientes, cobros y usuarios de plataforma."
+          : " Solicite autorización al Administrador del sistema."}
       </p>
-      <Button asChild className="mt-6">
-        <Link to="/">Volver al dashboard</Link>
+      <Button asChild className="mt-6 w-full sm:w-auto">
+        <Link to={isSuperAdmin ? "/admin" : "/"}>
+          {isSuperAdmin ? "Ir al panel SaaS" : "Volver al dashboard"}
+        </Link>
       </Button>
     </div>
   );

@@ -30,13 +30,13 @@ import { money, useStore, fecha } from "@/lib/store";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Dashboard SIGEPROC — Control de Proyectos Civiles" },
+      { title: "Dashboard SIGOC — Control de Proyectos Civiles" },
       {
         name: "description",
         content:
           "Panel de indicadores: presupuesto total, ejecutado, saldo disponible, avance físico y financiero de los proyectos civiles.",
       },
-      { property: "og:title", content: "Dashboard SIGEPROC" },
+      { property: "og:title", content: "Dashboard SIGOC" },
       {
         property: "og:description",
         content: "Indicadores en tiempo real del portafolio de proyectos civiles.",
@@ -66,14 +66,14 @@ function StatCard({
     info: "bg-info/15 text-info",
   };
   return (
-    <div className="panel p-5">
+    <div className="panel p-4 sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <p className="label-kicker">{label}</p>
         <span className={`grid size-9 place-items-center rounded-md ${tones[tone]}`}>
           <Icon className="size-4" />
         </span>
       </div>
-      <p className="stat-value mt-3">{value}</p>
+      <p className="stat-value mt-3 break-words">{value}</p>
       {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
     </div>
   );
@@ -98,11 +98,11 @@ function Dashboard() {
   }));
 
   const chartAvance = [
-    { mes: "Mar", fisico: 12, financiero: 8 },
-    { mes: "Abr", fisico: 24, financiero: 19 },
-    { mes: "May", fisico: 35, financiero: 28 },
-    { mes: "Jun", fisico: 44, financiero: 37 },
-    { mes: "Jul", fisico: 53, financiero: 46 },
+    { mes: "Mar", fisico: 0, financiero: 0 },
+    { mes: "Abr", fisico: 0, financiero: 0 },
+    { mes: "May", fisico: 0, financiero: 0 },
+    { mes: "Jun", fisico: 0, financiero: 0 },
+    { mes: "Jul", fisico: 0, financiero: 0 },
     { mes: "Ago", fisico: avanceFisico, financiero: avanceFinanciero },
   ];
 
@@ -183,13 +183,14 @@ function Dashboard() {
       <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="panel p-5 xl:col-span-2">
           <p className="label-kicker">Presupuesto vs ejecutado por proyecto</p>
-          <div className="mt-4 h-72">
+          <div className="mt-4 h-56 sm:h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartPresupuesto}>
+              <BarChart data={chartPresupuesto} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 12, fill: "var(--color-muted-foreground)" }} />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} />
                 <YAxis
-                  tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }}
+                  width={40}
+                  tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
                   tickFormatter={(v: number) => `${v / 1000000}M`}
                 />
                 <Tooltip
@@ -214,9 +215,9 @@ function Dashboard() {
 
         <div className="panel p-5">
           <p className="label-kicker">Curva de avance</p>
-          <div className="mt-4 h-72">
+          <div className="mt-4 h-56 sm:h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartAvance}>
+              <AreaChart data={chartAvance} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gf" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="var(--color-chart-1)" stopOpacity={0.5} />
@@ -228,8 +229,8 @@ function Dashboard() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                <XAxis dataKey="mes" tick={{ fontSize: 12, fill: "var(--color-muted-foreground)" }} />
-                <YAxis tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} unit="%" />
+                <XAxis dataKey="mes" tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }} />
+                <YAxis width={36} tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }} unit="%" />
                 <Tooltip
                   contentStyle={{
                     background: "var(--color-card)",
@@ -261,9 +262,9 @@ function Dashboard() {
             ))}
           </ul>
         </div>
-        <div className="panel flex flex-col items-center p-5">
+        <div className="panel flex flex-col items-center overflow-x-auto p-4 sm:p-5">
           <p className="label-kicker self-start">Calendario de obra</p>
-          <Calendar mode="single" className="mt-2" />
+          <Calendar mode="single" className="mt-2 w-full max-w-[320px]" />
           <p className="mt-2 text-xs text-muted-foreground">
             {actividades.filter((a) => a.estado === "En curso").length} actividades en curso
           </p>

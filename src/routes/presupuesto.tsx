@@ -37,13 +37,13 @@ import { useStore, usePermisos, money } from "@/lib/store";
 export const Route = createFileRoute("/presupuesto")({
   head: () => ({
     meta: [
-      { title: "Presupuesto por partidas — SIGEPROC" },
+      { title: "Presupuesto por partidas — SIGOC" },
       {
         name: "description",
         content:
           "Control de partidas presupuestarias por proyecto: monto contratado, ejecutado y saldo disponible.",
       },
-      { property: "og:title", content: "Presupuesto — SIGEPROC" },
+      { property: "og:title", content: "Presupuesto — SIGOC" },
       {
         property: "og:description",
         content: "Partidas de obra, ejecución y saldo por proyecto civil.",

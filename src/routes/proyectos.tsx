@@ -44,6 +44,8 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { PageHeader, AccesoDenegado } from "@/components/AppShell";
 import { Field } from "@/components/Field";
+import { DateInput } from "@/components/DateInput";
+import { cn } from "@/lib/utils";
 import {
   useStore,
   usePermisos,
@@ -56,13 +58,13 @@ import {
 export const Route = createFileRoute("/proyectos")({
   head: () => ({
     meta: [
-      { title: "Proyectos — SIGEPROC" },
+      { title: "Proyectos — SIGOC" },
       {
         name: "description",
         content:
           "Registro y control de proyectos civiles: código, entidad, empresa contratista, responsable, plazos, estado y presupuesto.",
       },
-      { property: "og:title", content: "Proyectos — SIGEPROC" },
+      { property: "og:title", content: "Proyectos — SIGOC" },
       {
         property: "og:description",
         content: "Alta, edición y seguimiento de proyectos de construcción.",
@@ -209,18 +211,18 @@ function ProyectosPage() {
       />
 
       <div className="panel overflow-hidden">
-        <div className="flex flex-wrap items-center gap-3 border-b border-border p-4">
-          <div className="relative min-w-[220px] flex-1">
+        <div className="flex flex-col gap-3 border-b border-border p-3 sm:flex-row sm:flex-wrap sm:items-center sm:p-4">
+          <div className="relative w-full min-w-0 flex-1 sm:min-w-[220px]">
             <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Buscar por código, nombre, empresa o responsable"
+              placeholder="Buscar por código, nombre, empresa…"
               className="pl-9"
             />
           </div>
           <Select value={filtro} onValueChange={setFiltro}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -234,7 +236,72 @@ function ProyectosPage() {
           </Select>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Vista móvil: tarjetas */}
+        <div className="space-y-3 p-3 md:hidden">
+          {lista.map((p) => (
+            <article key={p.id} className="rounded-lg border border-border bg-card p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-mono text-xs font-medium text-muted-foreground">{p.codigo}</p>
+                  <h3 className="mt-0.5 text-sm font-semibold leading-snug text-foreground">{p.nombre}</h3>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">{p.entidad}</p>
+                </div>
+                <Badge variant="outline" className={cn("shrink-0", estadoBadge(p.estado))}>
+                  {p.estado}
+                </Badge>
+              </div>
+              <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <dt className="text-muted-foreground">Empresa</dt>
+                  <dd className="truncate font-medium">{p.empresa}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Presupuesto</dt>
+                  <dd className="font-medium">{money(p.presupuesto)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Responsable</dt>
+                  <dd className="truncate">{p.responsable}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Periodo</dt>
+                  <dd>
+                    {fecha(p.fechaInicio)} – {fecha(p.fechaFinal)}
+                  </dd>
+                </div>
+              </dl>
+              <div className="mt-3 flex flex-wrap justify-end gap-1 border-t border-border pt-3">
+                <IconBtn label="Ver" onClick={() => setDetalle(p)}>
+                  <Eye className="size-4" />
+                </IconBtn>
+                <IconBtn label="Documentos" to="/documentos">
+                  <FileText className="size-4" />
+                </IconBtn>
+                <IconBtn label="Fotografías" to="/fotografias">
+                  <Camera className="size-4" />
+                </IconBtn>
+                {editable ? (
+                  <>
+                    <IconBtn label="Editar" onClick={() => abrirEditar(p)}>
+                      <Pencil className="size-4" />
+                    </IconBtn>
+                    <IconBtn label="Eliminar" onClick={() => setBorrar(p)} destructive>
+                      <Trash2 className="size-4" />
+                    </IconBtn>
+                  </>
+                ) : null}
+              </div>
+            </article>
+          ))}
+          {!lista.length ? (
+            <p className="py-10 text-center text-sm text-muted-foreground">
+              No se encontraron proyectos con los filtros aplicados.
+            </p>
+          ) : null}
+        </div>
+
+        {/* Vista desktop: tabla */}
+        <div className="hidden overflow-x-auto md:block">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
@@ -364,18 +431,16 @@ function ProyectosPage() {
               />
             </Field>
             <Field label="Fecha de inicio" error={err("fechaInicio")}>
-              <Input
-                type="date"
+              <DateInput
                 value={form.fechaInicio}
-                onChange={(e) => set("fechaInicio", e.target.value)}
+                onChange={(v) => set("fechaInicio", v)}
                 onBlur={() => blur("fechaInicio")}
               />
             </Field>
             <Field label="Fecha final" error={err("fechaFinal")}>
-              <Input
-                type="date"
+              <DateInput
                 value={form.fechaFinal}
-                onChange={(e) => set("fechaFinal", e.target.value)}
+                onChange={(v) => set("fechaFinal", v)}
                 onBlur={() => blur("fechaFinal")}
               />
             </Field>

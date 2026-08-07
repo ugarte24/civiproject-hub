@@ -31,18 +31,19 @@ import {
 } from "@/components/ui/select";
 import { PageHeader, AccesoDenegado } from "@/components/AppShell";
 import { Field } from "@/components/Field";
+import { DateInput } from "@/components/DateInput";
 import { useStore, usePermisos, money, fecha, type MovimientoTipo } from "@/lib/store";
 
 export const Route = createFileRoute("/contabilidad")({
   head: () => ({
     meta: [
-      { title: "Contabilidad — SIGEPROC" },
+      { title: "Contabilidad — SIGOC" },
       {
         name: "description",
         content:
           "Registro de ingresos, egresos, facturas, pagos, retenciones y planillas de los proyectos civiles.",
       },
-      { property: "og:title", content: "Contabilidad — SIGEPROC" },
+      { property: "og:title", content: "Contabilidad — SIGOC" },
       {
         property: "og:description",
         content: "Módulo económico con acceso exclusivo para el rol Contabilidad.",
@@ -130,15 +131,17 @@ function ContabilidadPage() {
         </div>
       </div>
 
-      <div className="panel mt-4 p-4">
+      <div className="panel mt-4 p-3 sm:p-4">
         <Tabs defaultValue="Factura">
-          <TabsList className="flex-wrap">
-            {tabs.map((t) => (
-              <TabsTrigger key={t} value={t}>
-                {t === "Retencion" ? "Retenciones" : `${t}s`}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          <div className="-mx-1 overflow-x-auto px-1 pb-1">
+            <TabsList className="inline-flex h-auto min-w-full w-max flex-nowrap justify-start gap-1">
+              {tabs.map((t) => (
+                <TabsTrigger key={t} value={t} className="shrink-0">
+                  {t === "Retencion" ? "Retenciones" : `${t}s`}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
           {tabs.map((t) => {
             const lista = movimientos.filter((m) => m.tipo === t);
             return (
@@ -224,7 +227,7 @@ function ContabilidadPage() {
               <Input type="number" value={form.monto} onChange={(e) => set("monto", e.target.value)} />
             </Field>
             <Field label="Fecha" error={touched ? errores["fecha"] : undefined}>
-              <Input type="date" value={form.fecha} onChange={(e) => set("fecha", e.target.value)} />
+              <DateInput value={form.fecha} onChange={(v) => set("fecha", v)} />
             </Field>
             <Field label="Proyecto" full>
               <Select value={form.proyectoId} onValueChange={(v) => set("proyectoId", v)}>

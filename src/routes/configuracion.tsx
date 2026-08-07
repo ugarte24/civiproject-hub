@@ -11,13 +11,13 @@ import { usePermisos } from "@/lib/store";
 export const Route = createFileRoute("/configuracion")({
   head: () => ({
     meta: [
-      { title: "Configuración del sistema — SIGEPROC" },
+      { title: "Configuración del sistema — SIGOC" },
       {
         name: "description",
         content:
-          "Datos de la empresa, logo, colores institucionales, respaldos, notificaciones y parámetros generales de SIGEPROC.",
+          "Datos de la empresa, logo, colores institucionales, respaldos, notificaciones y parámetros generales de SIGOC.",
       },
-      { property: "og:title", content: "Configuración — SIGEPROC" },
+      { property: "og:title", content: "Configuración — SIGOC" },
       {
         property: "og:description",
         content: "Parámetros generales y preferencias del sistema.",

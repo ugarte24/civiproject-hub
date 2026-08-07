@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -12,8 +13,11 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { StoreProvider } from "@/lib/store";
+import { AuthProvider } from "@/lib/auth";
 import { AppShell } from "@/components/AppShell";
+import { RequireAuth } from "@/components/RequireAuth";
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 function NotFoundComponent() {
   return (
@@ -80,13 +84,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "SIGEPROC — Gestión y Control de Proyectos Civiles" },
+      { title: "SIGOC — Gestión y Control de Proyectos Civiles" },
       {
         name: "description",
         content:
           "Plataforma para controlar presupuestos, avance de obra, documentos técnicos y contabilidad de proyectos civiles.",
       },
-      { property: "og:title", content: "SIGEPROC — Gestión de Proyectos Civiles" },
+      { property: "og:title", content: "SIGOC — Gestión de Proyectos Civiles" },
       {
         property: "og:description",
         content:
@@ -118,7 +122,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="es">
+    <html lang="es-BO">
       <head>
         <HeadContent />
       </head>
@@ -132,15 +136,27 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isAuthPage = pathname === "/login";
 
   return (
     <QueryClientProvider client={queryClient}>
       <StoreProvider>
-        <AppShell>
-          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <Outlet />
-        </AppShell>
-        <Toaster position="top-right" richColors closeButton />
+        <AuthProvider>
+          <TooltipProvider delayDuration={300}>
+            {isAuthPage ? (
+              <Outlet />
+            ) : (
+              <RequireAuth>
+                <AppShell>
+                  {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+                  <Outlet />
+                </AppShell>
+              </RequireAuth>
+            )}
+            <Toaster position="top-right" richColors closeButton />
+          </TooltipProvider>
+        </AuthProvider>
       </StoreProvider>
     </QueryClientProvider>
   );

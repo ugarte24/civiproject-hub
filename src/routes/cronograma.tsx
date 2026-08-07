@@ -15,13 +15,13 @@ import { useStore, usePermisos, fecha } from "@/lib/store";
 export const Route = createFileRoute("/cronograma")({
   head: () => ({
     meta: [
-      { title: "Cronograma de obra (Gantt) — SIGEPROC" },
+      { title: "Cronograma de obra (Gantt) — SIGOC" },
       {
         name: "description",
         content:
           "Cronograma tipo Gantt con actividades, fechas de inicio y fin, duración, responsable y estado de avance.",
       },
-      { property: "og:title", content: "Cronograma — SIGEPROC" },
+      { property: "og:title", content: "Cronograma — SIGOC" },
       {
         property: "og:description",
         content: "Planificación y seguimiento de actividades de obra en vista Gantt.",
@@ -78,7 +78,10 @@ function CronogramaPage() {
         </Select>
       </div>
 
-      <div className="panel overflow-x-auto p-5">
+      <div className="panel overflow-x-auto p-3 sm:p-5">
+        <p className="mb-3 text-xs text-muted-foreground md:hidden">
+          Desliza horizontalmente para ver el Gantt completo.
+        </p>
         <div className="min-w-[720px]">
           <div className="grid grid-cols-[minmax(230px,1.4fr)_repeat(4,minmax(80px,1fr))_2.5fr] gap-3 border-b border-border pb-2">
             <span className="label-kicker">Actividad</span>
@@ -127,14 +130,14 @@ function CronogramaPage() {
       </div>
 
       {lista.length ? (
-        <div className="panel mt-4 p-5">
+        <div className="panel mt-4 p-4 sm:p-5">
           <p className="label-kicker">Avance por actividad</p>
           <div className="mt-4 space-y-4">
             {lista.map((a) => (
               <div key={a.id}>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-foreground">{a.nombre}</span>
-                  <span className="text-muted-foreground">{a.avance}%</span>
+                <div className="flex items-start justify-between gap-3 text-sm">
+                  <span className="min-w-0 text-foreground">{a.nombre}</span>
+                  <span className="shrink-0 text-muted-foreground">{a.avance}%</span>
                 </div>
                 <Progress value={a.avance} className="mt-1.5" />
               </div>

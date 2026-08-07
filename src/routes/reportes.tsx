@@ -22,18 +22,19 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { PageHeader, AccesoDenegado } from "@/components/AppShell";
 import { Field } from "@/components/Field";
+import { DateInput } from "@/components/DateInput";
 import { useStore, usePermisos, money, fecha } from "@/lib/store";
 
 export const Route = createFileRoute("/reportes")({
   head: () => ({
     meta: [
-      { title: "Reportes en PDF y Excel — SIGEPROC" },
+      { title: "Reportes en PDF y Excel — SIGOC" },
       {
         name: "description",
         content:
           "Generación de reportes filtrados por proyecto, fecha, empresa, responsable y estado, exportables a PDF y Excel.",
       },
-      { property: "og:title", content: "Reportes — SIGEPROC" },
+      { property: "og:title", content: "Reportes — SIGOC" },
       {
         property: "og:description",
         content: "Reportes automáticos del avance físico y financiero de los proyectos.",
@@ -107,7 +108,7 @@ function ReportesPage() {
           <Input value={responsable} onChange={(e) => setResponsable(e.target.value)} />
         </Field>
         <Field label="Desde">
-          <Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+          <DateInput value={desde} onChange={setDesde} />
         </Field>
       </div>
 

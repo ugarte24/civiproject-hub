@@ -28,13 +28,13 @@ import { useStore, usePermisos, fecha, type DocCategoria } from "@/lib/store";
 export const Route = createFileRoute("/documentos")({
   head: () => ({
     meta: [
-      { title: "Documentos técnicos — SIGEPROC" },
+      { title: "Documentos técnicos — SIGOC" },
       {
         name: "description",
         content:
           "Repositorio digital de planos, contratos, memorias de cálculo, licitaciones, informes, APU y actas por proyecto.",
       },
-      { property: "og:title", content: "Documentos — SIGEPROC" },
+      { property: "og:title", content: "Documentos — SIGOC" },
       {
         property: "og:description",
         content: "Carga y clasificación de documentación técnica en PDF, Word, Excel, DWG y ZIP.",

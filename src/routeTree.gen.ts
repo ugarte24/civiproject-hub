@@ -10,12 +10,14 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as ApuRouteImport } from './routes/apu'
 import { Route as ConfiguracionRouteImport } from './routes/configuracion'
 import { Route as ContabilidadRouteImport } from './routes/contabilidad'
 import { Route as CronogramaRouteImport } from './routes/cronograma'
 import { Route as DocumentosRouteImport } from './routes/documentos'
 import { Route as FotografiasRouteImport } from './routes/fotografias'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as PresupuestoRouteImport } from './routes/presupuesto'
 import { Route as ProyectosRouteImport } from './routes/proyectos'
 import { Route as ReportesRouteImport } from './routes/reportes'
@@ -24,6 +26,11 @@ import { Route as UsuariosRouteImport } from './routes/usuarios'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApuRoute = ApuRouteImport.update({
@@ -56,6 +63,11 @@ const FotografiasRoute = FotografiasRouteImport.update({
   path: '/fotografias',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PresupuestoRoute = PresupuestoRouteImport.update({
   id: '/presupuesto',
   path: '/presupuesto',
@@ -79,12 +91,14 @@ const UsuariosRoute = UsuariosRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/apu': typeof ApuRoute
   '/configuracion': typeof ConfiguracionRoute
   '/contabilidad': typeof ContabilidadRoute
   '/cronograma': typeof CronogramaRoute
   '/documentos': typeof DocumentosRoute
   '/fotografias': typeof FotografiasRoute
+  '/login': typeof LoginRoute
   '/presupuesto': typeof PresupuestoRoute
   '/proyectos': typeof ProyectosRoute
   '/reportes': typeof ReportesRoute
@@ -92,12 +106,14 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/apu': typeof ApuRoute
   '/configuracion': typeof ConfiguracionRoute
   '/contabilidad': typeof ContabilidadRoute
   '/cronograma': typeof CronogramaRoute
   '/documentos': typeof DocumentosRoute
   '/fotografias': typeof FotografiasRoute
+  '/login': typeof LoginRoute
   '/presupuesto': typeof PresupuestoRoute
   '/proyectos': typeof ProyectosRoute
   '/reportes': typeof ReportesRoute
@@ -106,12 +122,14 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/apu': typeof ApuRoute
   '/configuracion': typeof ConfiguracionRoute
   '/contabilidad': typeof ContabilidadRoute
   '/cronograma': typeof CronogramaRoute
   '/documentos': typeof DocumentosRoute
   '/fotografias': typeof FotografiasRoute
+  '/login': typeof LoginRoute
   '/presupuesto': typeof PresupuestoRoute
   '/proyectos': typeof ProyectosRoute
   '/reportes': typeof ReportesRoute
@@ -121,12 +139,14 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/apu'
     | '/configuracion'
     | '/contabilidad'
     | '/cronograma'
     | '/documentos'
     | '/fotografias'
+    | '/login'
     | '/presupuesto'
     | '/proyectos'
     | '/reportes'
@@ -134,12 +154,14 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin'
     | '/apu'
     | '/configuracion'
     | '/contabilidad'
     | '/cronograma'
     | '/documentos'
     | '/fotografias'
+    | '/login'
     | '/presupuesto'
     | '/proyectos'
     | '/reportes'
@@ -147,12 +169,14 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/apu'
     | '/configuracion'
     | '/contabilidad'
     | '/cronograma'
     | '/documentos'
     | '/fotografias'
+    | '/login'
     | '/presupuesto'
     | '/proyectos'
     | '/reportes'
@@ -161,12 +185,14 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRoute
   ApuRoute: typeof ApuRoute
   ConfiguracionRoute: typeof ConfiguracionRoute
   ContabilidadRoute: typeof ContabilidadRoute
   CronogramaRoute: typeof CronogramaRoute
   DocumentosRoute: typeof DocumentosRoute
   FotografiasRoute: typeof FotografiasRoute
+  LoginRoute: typeof LoginRoute
   PresupuestoRoute: typeof PresupuestoRoute
   ProyectosRoute: typeof ProyectosRoute
   ReportesRoute: typeof ReportesRoute
@@ -180,6 +206,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/apu': {
@@ -224,6 +257,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FotografiasRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/presupuesto': {
       id: '/presupuesto'
       path: '/presupuesto'
@@ -257,12 +297,14 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRoute,
   ApuRoute: ApuRoute,
   ConfiguracionRoute: ConfiguracionRoute,
   ContabilidadRoute: ContabilidadRoute,
   CronogramaRoute: CronogramaRoute,
   DocumentosRoute: DocumentosRoute,
   FotografiasRoute: FotografiasRoute,
+  LoginRoute: LoginRoute,
   PresupuestoRoute: PresupuestoRoute,
   ProyectosRoute: ProyectosRoute,
   ReportesRoute: ReportesRoute,
@@ -271,3 +313,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

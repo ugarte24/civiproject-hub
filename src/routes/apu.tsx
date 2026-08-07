@@ -28,13 +28,13 @@ import { useStore, usePermisos, apuPrecioUnitario, money2, type ApuInsumo } from
 export const Route = createFileRoute("/apu")({
   head: () => ({
     meta: [
-      { title: "APU — Análisis de Precios Unitarios | SIGEPROC" },
+      { title: "APU — Análisis de Precios Unitarios | SIGOC" },
       {
         name: "description",
         content:
           "Análisis de precios unitarios con materiales, equipos, mano de obra, costo directo, indirectos, utilidad y precio unitario.",
       },
-      { property: "og:title", content: "Análisis de Precios Unitarios — SIGEPROC" },
+      { property: "og:title", content: "Análisis de Precios Unitarios — SIGOC" },
       {
         property: "og:description",
         content: "Cálculo detallado del precio unitario de cada ítem de obra.",
