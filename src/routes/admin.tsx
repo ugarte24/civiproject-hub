@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Building2, CalendarClock, Plus, RefreshCw, Shield, Users, ArrowLeftRight, Pencil } from "lucide-react";
+import { Building2, CalendarClock, Plus, RefreshCw, Shield, Users, Pencil, Receipt } from "lucide-react";
 import { PageHeader, AccesoDenegado } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +41,7 @@ import {
   type Suscripcion,
   type SuscripcionPeriodo,
 } from "@/lib/subscription";
+import { imprimirRecibo, type ReciboPago } from "@/lib/recibo";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -65,10 +66,17 @@ function isEmpresaRole(value: unknown): value is Role {
   return typeof value === "string" && (ROLES_EMPRESA as string[]).includes(value);
 }
 
+type PagoRow = ReciboPago & {
+  empresa_id: string;
+  suscripcion_id: string;
+};
+
 function AdminPage() {
   const { isSuperAdmin, refreshSubscription } = useAuth();
   const [rows, setRows] = useState<Row[]>([]);
+  const [pagos, setPagos] = useState<PagoRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pagosLoading, setPagosLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [onboardOpen, setOnboardOpen] = useState(false);
   const [onboardSaving, setOnboardSaving] = useState(false);
@@ -86,10 +94,8 @@ function AdminPage() {
     rol: "Consulta" as Role,
     estado: "Activo" as "Activo" | "Inactivo",
   });
-  const [planOpen, setPlanOpen] = useState(false);
-  const [planSaving, setPlanSaving] = useState(false);
-  const [planRow, setPlanRow] = useState<Row | null>(null);
-  const [planPeriodo, setPlanPeriodo] = useState<SuscripcionPeriodo>("mensual");
+  const [pagoConfirm, setPagoConfirm] = useState<Row | null>(null);
+  const [pagoPeriodo, setPagoPeriodo] = useState<SuscripcionPeriodo>("mensual");
   const [form, setForm] = useState({
     empresa: "",
     nit: "",
@@ -192,9 +198,51 @@ function AdminPage() {
     }
   }, []);
 
+  const loadPagos = useCallback(async () => {
+    setPagosLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("pagos")
+        .select(
+          "id, empresa_id, suscripcion_id, numero, periodo, monto, moneda, fecha_pago, vigencia_desde, vigencia_hasta, metodo, empresas(nombre)",
+        )
+        .order("fecha_pago", { ascending: false })
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+
+      setPagos(
+        (data ?? []).map((p) => {
+          const empresas = p.empresas as { nombre?: string } | { nombre?: string }[] | null;
+          const nombre = Array.isArray(empresas) ? empresas[0]?.nombre : empresas?.nombre;
+          return {
+            id: p.id as string,
+            empresa_id: p.empresa_id as string,
+            suscripcion_id: p.suscripcion_id as string,
+            numero: p.numero as string,
+            periodo: p.periodo === "anual" ? "anual" : "mensual",
+            monto: Number(p.monto),
+            moneda: (p.moneda as string) || "BOB",
+            fecha_pago: p.fecha_pago as string,
+            vigencia_desde: p.vigencia_desde as string,
+            vigencia_hasta: p.vigencia_hasta as string,
+            metodo: (p.metodo as string | null) ?? null,
+            empresa_nombre: nombre || "Sin nombre",
+          };
+        }),
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "No se pudo cargar el historial de pagos";
+      toast.error(msg);
+    } finally {
+      setPagosLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    if (isSuperAdmin) void load();
-  }, [isSuperAdmin, load]);
+    if (!isSuperAdmin) return;
+    void load();
+    void loadPagos();
+  }, [isSuperAdmin, load, loadPagos]);
 
   const porVencer = useMemo(
     () =>
@@ -205,58 +253,81 @@ function AdminPage() {
     [rows],
   );
 
-  const marcarPagado = async (id: string) => {
-    setBusyId(id);
+  const abrirRecibo = (pago: ReciboPago) => {
     try {
+      imprimirRecibo(pago);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "No se pudo abrir el recibo";
+      toast.error(msg);
+    }
+  };
+
+  const pedirConfirmarPago = (r: Row) => {
+    if (daysUntil(r.fecha_fin) >= 0) {
+      toast.error("Solo puede marcar pagado cuando el plan está vencido.");
+      return;
+    }
+    setPagoPeriodo("mensual");
+    setPagoConfirm(r);
+  };
+
+  const marcarPagado = async (id: string, periodo: SuscripcionPeriodo) => {
+    const row = rows.find((r) => r.id === id) ?? pagoConfirm;
+    if (row && daysUntil(row.fecha_fin) >= 0) {
+      toast.error("Solo puede marcar pagado cuando el plan está vencido.");
+      setPagoConfirm(null);
+      return;
+    }
+    setBusyId(id);
+    setPagoConfirm(null);
+    try {
+      const empresaNombre =
+        rows.find((r) => r.id === id)?.empresa_nombre ??
+        pagoConfirm?.empresa_nombre ??
+        "Cliente";
       const { data, error } = await supabase.rpc("marcar_pagado_suscripcion", {
         p_suscripcion_id: id,
+        p_periodo: periodo,
       });
       if (error) throw error;
-      const row = data as { fecha_fin?: string } | null;
+      const pago = data as {
+        id: string;
+        numero: string;
+        periodo: string;
+        monto: number;
+        moneda: string;
+        fecha_pago: string;
+        vigencia_desde: string;
+        vigencia_hasta: string;
+        metodo: string | null;
+        empresa_id: string;
+        suscripcion_id: string;
+      } | null;
+      if (!pago) throw new Error("No se obtuvo el pago registrado");
+
       toast.success(
-        `Pago registrado. Nueva vigencia hasta ${formatFechaBO(row?.fecha_fin ?? "")}.`,
+        `Pago ${pago.numero} registrado. Vigencia hasta ${formatFechaBO(pago.vigencia_hasta)}.`,
       );
       await load();
+      await loadPagos();
       await refreshSubscription();
+      abrirRecibo({
+        id: pago.id,
+        numero: pago.numero,
+        empresa_nombre: empresaNombre,
+        periodo: pago.periodo === "anual" ? "anual" : "mensual",
+        monto: Number(pago.monto),
+        moneda: pago.moneda || "BOB",
+        fecha_pago: pago.fecha_pago,
+        vigencia_desde: pago.vigencia_desde,
+        vigencia_hasta: pago.vigencia_hasta,
+        metodo: pago.metodo,
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "No se pudo marcar el pago";
       toast.error(msg);
     } finally {
       setBusyId(null);
-    }
-  };
-
-  const abrirCambiarPlan = (r: Row) => {
-    setPlanRow(r);
-    setPlanPeriodo(r.periodo);
-    setPlanOpen(true);
-  };
-
-  const guardarPlan = async () => {
-    if (!planRow) return;
-    if (planPeriodo === planRow.periodo) {
-      setPlanOpen(false);
-      return;
-    }
-    setPlanSaving(true);
-    try {
-      const { error } = await supabase.rpc("cambiar_periodo_suscripcion", {
-        p_suscripcion_id: planRow.id,
-        p_periodo: planPeriodo,
-      });
-      if (error) throw error;
-      toast.success(
-        planPeriodo === "anual"
-          ? "Plan cambiado a Anual (Bs 5.500). El próximo pago sumará +365 días."
-          : "Plan cambiado a Mensual (Bs 500). El próximo pago sumará +30 días.",
-      );
-      setPlanOpen(false);
-      await load();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "No se pudo cambiar el plan";
-      toast.error(msg);
-    } finally {
-      setPlanSaving(false);
     }
   };
 
@@ -375,6 +446,9 @@ function AdminPage() {
 
       const row = Array.isArray(empresaRows) ? empresaRows[0] : empresaRows;
       const empresaId = (row as { empresa_id?: string })?.empresa_id;
+      const pagoId = (row as { pago_id?: string })?.pago_id;
+      const pagoNumero = (row as { pago_numero?: string })?.pago_numero;
+      const empresaNombreAlta = form.empresa.trim();
       if (!empresaId) throw new Error("No se obtuvo empresa_id");
 
       const { data: sess } = await supabase.auth.getSession();
@@ -394,7 +468,7 @@ function AdminPage() {
       });
 
       toast.success(
-        `Cliente creado. Vigencia hasta ${formatFechaBO((row as { fecha_fin?: string }).fecha_fin ?? "")}.`,
+        `Cliente creado${pagoNumero ? ` · recibo ${pagoNumero}` : ""}. Vigencia hasta ${formatFechaBO((row as { fecha_fin?: string }).fecha_fin ?? "")}.`,
       );
       setOnboardOpen(false);
       setForm({
@@ -406,6 +480,31 @@ function AdminPage() {
         adminPassword: "",
       });
       await load();
+      await loadPagos();
+
+      if (pagoId) {
+        const { data: pagoRow } = await supabase
+          .from("pagos")
+          .select(
+            "id, numero, periodo, monto, moneda, fecha_pago, vigencia_desde, vigencia_hasta, metodo",
+          )
+          .eq("id", pagoId)
+          .maybeSingle();
+        if (pagoRow) {
+          abrirRecibo({
+            id: pagoRow.id as string,
+            numero: pagoRow.numero as string,
+            empresa_nombre: empresaNombreAlta || "Cliente",
+            periodo: pagoRow.periodo === "anual" ? "anual" : "mensual",
+            monto: Number(pagoRow.monto),
+            moneda: (pagoRow.moneda as string) || "BOB",
+            fecha_pago: pagoRow.fecha_pago as string,
+            vigencia_desde: pagoRow.vigencia_desde as string,
+            vigencia_hasta: pagoRow.vigencia_hasta as string,
+            metodo: (pagoRow.metodo as string | null) ?? null,
+          });
+        }
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "No se pudo dar de alta el cliente";
       toast.error(msg);
@@ -425,9 +524,17 @@ function AdminPage() {
         title="Panel SuperAdmin"
         description="Gestión de clientes y suscripciones. Mensual Bs 500 · Anual Bs 5.500 · usuarios ilimitados."
         action={
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-            <Button variant="outline" className="gap-2" onClick={() => void load()} disabled={loading}>
-              <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => {
+                void load();
+                void loadPagos();
+              }}
+              disabled={loading || pagosLoading}
+            >
+              <RefreshCw className={`size-4 ${loading || pagosLoading ? "animate-spin" : ""}`} />
               Actualizar
             </Button>
             <Button className="gap-2" onClick={() => setOnboardOpen(true)}>
@@ -447,12 +554,8 @@ function AdminPage() {
           <p className="stat-value mt-2 text-warning-foreground">{porVencer.length}</p>
         </div>
         <div className="panel p-4 sm:p-5">
-          <p className="label-kicker">Plan Esencial</p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            <strong>Bs 500/mes</strong> o <strong>Bs 5.500/año</strong>
-            <br />
-            Usuarios ilimitados
-          </p>
+          <p className="label-kicker">Pagos registrados</p>
+          <p className="stat-value mt-2">{pagos.length}</p>
         </div>
       </div>
 
@@ -524,24 +627,19 @@ function AdminPage() {
                     Ver usuarios
                   </Button>
                   <Button
-                    variant="outline"
                     className="w-full gap-2"
-                    onClick={() => abrirCambiarPlan(r)}
-                  >
-                    <ArrowLeftRight className="size-4" />
-                    Cambiar plan
-                  </Button>
-                  <Button
-                    className="w-full gap-2"
-                    disabled={busyId === r.id}
-                    onClick={() => void marcarPagado(r.id)}
+                    disabled={!vencida || busyId === r.id}
+                    onClick={() => pedirConfirmarPago(r)}
+                    title={vencida ? undefined : "Solo disponible cuando el plan está vencido"}
                   >
                     <Shield className="size-4" />
                     {busyId === r.id
                       ? "Procesando…"
-                      : r.periodo === "anual"
-                        ? "Marcar pagado (+365 días)"
-                        : "Marcar pagado (+30 días)"}
+                      : !vencida
+                        ? "Plan vigente"
+                        : r.periodo === "anual"
+                          ? "Marcar pagado (+365 días)"
+                          : "Marcar pagado (+30 días)"}
                   </Button>
                 </div>
               </article>
@@ -607,23 +705,17 @@ function AdminPage() {
                         </Button>
                         <Button
                           size="sm"
-                          variant="outline"
-                          className="gap-1.5"
-                          onClick={() => abrirCambiarPlan(r)}
-                        >
-                          <ArrowLeftRight className="size-3.5" />
-                          Plan
-                        </Button>
-                        <Button
-                          size="sm"
-                          disabled={busyId === r.id}
-                          onClick={() => void marcarPagado(r.id)}
+                          disabled={!vencida || busyId === r.id}
+                          onClick={() => pedirConfirmarPago(r)}
+                          title={vencida ? undefined : "Solo disponible cuando el plan está vencido"}
                         >
                           {busyId === r.id
                             ? "…"
-                            : r.periodo === "anual"
-                              ? "Pagado (+365d)"
-                              : "Pagado (+30d)"}
+                            : !vencida
+                              ? "Vigente"
+                              : r.periodo === "anual"
+                                ? "Pagado (+365d)"
+                                : "Pagado (+30d)"}
                         </Button>
                       </div>
                     </TableCell>
@@ -634,6 +726,103 @@ function AdminPage() {
                 <TableRow>
                   <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
                     No hay suscripciones. Use “Nuevo cliente”.
+                  </TableCell>
+                </TableRow>
+              ) : null}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      <div className="panel mt-4 overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+          <div>
+            <p className="font-medium">Historial de pagos</p>
+            <p className="text-xs text-muted-foreground">
+              Cada “Marcar pagado” genera un recibo (REC-AAAA-#####) que puede reimprimir.
+            </p>
+          </div>
+          <Badge variant="outline">{pagos.length} registros</Badge>
+        </div>
+
+        <div className="space-y-3 p-3 md:hidden">
+          {pagos.map((p) => (
+            <article key={p.id} className="rounded-lg border border-border p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-medium">{p.numero}</p>
+                  <p className="truncate text-xs text-muted-foreground">{p.empresa_nombre}</p>
+                </div>
+                <Badge variant="outline">{p.periodo === "anual" ? "Anual" : "Mensual"}</Badge>
+              </div>
+              <p className="mt-2 text-sm">
+                {formatFechaBO(p.fecha_pago)} · Bs {p.monto.toFixed(2)}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Vigencia {formatFechaBO(p.vigencia_desde)} → {formatFechaBO(p.vigencia_hasta)}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3 w-full gap-2"
+                onClick={() => abrirRecibo(p)}
+              >
+                <Receipt className="size-4" />
+                Generar recibo
+              </Button>
+            </article>
+          ))}
+          {!pagosLoading && !pagos.length ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Aún no hay pagos. Use “Marcar pagado” en un cliente.
+            </p>
+          ) : null}
+          {pagosLoading ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Cargando pagos…</p>
+          ) : null}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead>Nº recibo</TableHead>
+                <TableHead>Empresa</TableHead>
+                <TableHead>Fecha</TableHead>
+                <TableHead>Periodo</TableHead>
+                <TableHead>Monto</TableHead>
+                <TableHead>Vigencia</TableHead>
+                <TableHead className="text-right">Recibo</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {pagos.map((p) => (
+                <TableRow key={p.id}>
+                  <TableCell className="font-medium">{p.numero}</TableCell>
+                  <TableCell>{p.empresa_nombre}</TableCell>
+                  <TableCell>{formatFechaBO(p.fecha_pago)}</TableCell>
+                  <TableCell className="capitalize">{p.periodo}</TableCell>
+                  <TableCell>Bs {p.monto.toFixed(2)}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {formatFechaBO(p.vigencia_desde)} → {formatFechaBO(p.vigencia_hasta)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      onClick={() => abrirRecibo(p)}
+                    >
+                      <Receipt className="size-3.5" />
+                      Recibo
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {!pagosLoading && !pagos.length ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                    Aún no hay pagos. Use “Marcar pagado” en un cliente.
                   </TableCell>
                 </TableRow>
               ) : null}
@@ -911,38 +1100,60 @@ function AdminPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={planOpen} onOpenChange={setPlanOpen}>
+      <Dialog
+        open={Boolean(pagoConfirm)}
+        onOpenChange={(open) => {
+          if (!open) setPagoConfirm(null);
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="font-display text-2xl tracking-wide uppercase">
-              Cambiar plan
+              Confirmar pago
             </DialogTitle>
             <DialogDescription>
-              {planRow
-                ? `Cliente: ${planRow.empresa_nombre}. La vigencia actual no se modifica; el próximo “Marcar pagado” usará el nuevo periodo.`
-                : "Seleccione el periodo de cobro."}
+              {pagoConfirm ? (
+                <>
+                  Registrar pago de <strong>{pagoConfirm.empresa_nombre}</strong>. Elija el plan;
+                  por defecto es mensual.
+                </>
+              ) : (
+                "Confirme el registro del pago."
+              )}
             </DialogDescription>
           </DialogHeader>
-          <Field label="Periodo de pago" full>
+          <Field label="Plan a pagar" full>
             <Select
-              value={planPeriodo}
-              onValueChange={(v) => setPlanPeriodo(v as SuscripcionPeriodo)}
+              value={pagoPeriodo}
+              onValueChange={(v) => setPagoPeriodo(v as SuscripcionPeriodo)}
             >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="mensual">Mensual — Bs 500</SelectItem>
-                <SelectItem value="anual">Anual — Bs 5.500</SelectItem>
+                <SelectItem value="mensual">Mensual — Bs 500 (+30 días)</SelectItem>
+                <SelectItem value="anual">Anual — Bs 5.500 (+365 días)</SelectItem>
               </SelectContent>
             </Select>
           </Field>
+          <p className="text-xs text-muted-foreground">
+            Se generará un recibo y se reactivará la vigencia con el plan elegido.
+          </p>
           <DialogFooter className="gap-2 sm:justify-between">
-            <Button variant="outline" onClick={() => setPlanOpen(false)}>
+            <Button
+              variant="outline"
+              disabled={Boolean(busyId)}
+              onClick={() => setPagoConfirm(null)}
+            >
               Cancelar
             </Button>
-            <Button onClick={() => void guardarPlan()} disabled={planSaving}>
-              {planSaving ? "Guardando…" : "Guardar plan"}
+            <Button
+              disabled={!pagoConfirm || Boolean(busyId)}
+              onClick={() => {
+                if (pagoConfirm) void marcarPagado(pagoConfirm.id, pagoPeriodo);
+              }}
+            >
+              {busyId ? "Procesando…" : "Confirmar pago"}
             </Button>
           </DialogFooter>
         </DialogContent>

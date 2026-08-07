@@ -30,5 +30,6 @@
 
 1. Cliente paga QR/transferencia (Bs 500 o Bs 5.500)
 2. Envía comprobante
-3. SuperAdmin → **Marcar pagado** (+30 o +365 según periodo)
-4. SuperAdmin puede **cambiar plan** (mensual ↔ anual) sin alterar la fecha fin actual; el próximo pago usa el nuevo periodo
+3. SuperAdmin → **Marcar pagado** solo si el plan está **vencido** (+30 o +365) → genera recibo `REC-AAAA-#####`
+4. SuperAdmin puede **reimprimir recibos** desde Historial de pagos
+5. SuperAdmin puede **cambiar plan** (mensual ↔ anual) sin alterar la fecha fin actual; el próximo pago usa el nuevo periodo

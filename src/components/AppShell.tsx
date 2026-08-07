@@ -28,6 +28,10 @@ import { usePermisos } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { SubscriptionBanner } from "@/components/SubscriptionBanner";
+import {
+  SuperAdminProfileDialog,
+  SuperAdminProfileTrigger,
+} from "@/components/SuperAdminProfileButton";
 import { getAppFooterLabel } from "@/lib/app-version";
 
 const nav = [
@@ -124,6 +128,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { role } = usePermisos();
   const { profile, isSuperAdmin } = useAuth();
   const [open, setOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [cerrando, setCerrando] = useState(false);
   const navigate = useNavigate();
 
@@ -150,7 +155,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
           <NavList />
         </div>
-        <div className="shrink-0 space-y-3 border-t border-sidebar-border px-4 py-4">
+        <div className="shrink-0 space-y-1 border-t border-sidebar-border px-4 py-4">
+          {isSuperAdmin ? (
+            <SuperAdminProfileTrigger onClick={() => setProfileOpen(true)} />
+          ) : null}
           <Button
             variant="ghost"
             className="w-full justify-start gap-2 text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
@@ -160,7 +168,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <LogOut className="size-4 shrink-0" />
             <span className="truncate">{cerrando ? "Cerrando…" : "Cerrar sesión"}</span>
           </Button>
-          <p className="px-1 text-[11px] text-sidebar-foreground/50">{getAppFooterLabel()}</p>
+          <p className="px-1 pt-2 text-[11px] text-sidebar-foreground/50">{getAppFooterLabel()}</p>
         </div>
       </aside>
 
@@ -181,8 +189,8 @@ export function AppShell({ children }: { children: ReactNode }) {
               <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
                 <NavList onNavigate={() => setOpen(false)} />
               </div>
-              <div className="shrink-0 border-t border-sidebar-border px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-                <div className="mb-3 px-1">
+              <div className="shrink-0 space-y-1 border-t border-sidebar-border px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                <div className="mb-2 px-1">
                   <p className="truncate text-sm font-medium text-sidebar-accent-foreground">
                     {profile?.nombre ?? "Usuario"}
                   </p>
@@ -190,6 +198,14 @@ export function AppShell({ children }: { children: ReactNode }) {
                     {isSuperAdmin ? "SuperAdmin" : role}
                   </p>
                 </div>
+                {isSuperAdmin ? (
+                  <SuperAdminProfileTrigger
+                    onClick={() => {
+                      setOpen(false);
+                      setProfileOpen(true);
+                    }}
+                  />
+                ) : null}
                 <Button
                   variant="ghost"
                   className="w-full justify-start gap-2 text-sidebar-foreground/80"
@@ -281,6 +297,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="px-3 py-4 sm:px-4 sm:py-6 lg:px-8 lg:py-8">{children}</div>
         </main>
       </div>
+
+      {isSuperAdmin ? (
+        <SuperAdminProfileDialog open={profileOpen} onOpenChange={setProfileOpen} />
+      ) : null}
     </div>
   );
 }
