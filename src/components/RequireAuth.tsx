@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useAuth } from "@/lib/auth";
+import { LoadingScreen } from "@/components/SigocLogo";
 import { PlanVencido } from "@/components/PlanVencido";
 
 /** Rutas permitidas al SuperAdmin de plataforma (no opera obra). */
@@ -27,11 +28,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 
   // Esperar sesión + perfil + suscripción para no mostrar "Plan vencido" en falso
   if (loading || subscription.loading || (session && !profile)) {
-    return (
-      <div className="flex min-h-dvh items-center justify-center bg-background">
-        <p className="text-sm text-muted-foreground">Cargando sesión…</p>
-      </div>
-    );
+    return <LoadingScreen message="Cargando sesión…" />;
   }
 
   if (!session) return null;
