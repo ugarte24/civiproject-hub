@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Building2, CalendarClock, Plus, RefreshCw, Shield, Users, Pencil, Receipt, Printer } from "lucide-react";
+import { Building2, CalendarClock, Plus, RefreshCw, Shield, Users, Pencil, Receipt, Printer, Download } from "lucide-react";
 import { PageHeader, AccesoDenegado } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +43,7 @@ import {
 } from "@/lib/subscription";
 import {
   buildReciboHtml,
+  descargarReciboPdf,
   imprimirIframeRecibo,
   imprimirRecibo,
   type ReciboPago,
@@ -102,6 +103,7 @@ function AdminPage() {
   const [pagoConfirm, setPagoConfirm] = useState<Row | null>(null);
   const [pagoPeriodo, setPagoPeriodo] = useState<SuscripcionPeriodo>("mensual");
   const [reciboVista, setReciboVista] = useState<ReciboPago | null>(null);
+  const [reciboPdfBusy, setReciboPdfBusy] = useState(false);
   const reciboIframeRef = useRef<HTMLIFrameElement | null>(null);
   const [form, setForm] = useState({
     empresa: "",
@@ -280,6 +282,20 @@ function AdminPage() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "No se pudo abrir el recibo";
       toast.error(msg);
+    }
+  };
+
+  const descargarPdfRecibo = async () => {
+    if (!reciboVista) return;
+    setReciboPdfBusy(true);
+    try {
+      await descargarReciboPdf(reciboVista);
+      toast.success(`PDF ${reciboVista.numero}.pdf descargado. Ya puede enviarlo por WhatsApp.`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "No se pudo descargar el PDF";
+      toast.error(msg);
+    } finally {
+      setReciboPdfBusy(false);
     }
   };
 
@@ -1192,7 +1208,7 @@ function AdminPage() {
               Recibo {reciboVista?.numero ?? ""}
             </DialogTitle>
             <DialogDescription>
-              Vista previa del comprobante. Puede imprimir o guardar como PDF.
+              Vista previa del comprobante. Descargue el PDF para enviarlo por WhatsApp.
             </DialogDescription>
           </DialogHeader>
           {reciboVista ? (
@@ -1211,9 +1227,17 @@ function AdminPage() {
               <Button variant="outline" className="gap-1.5" onClick={abrirReciboPestana}>
                 Abrir pestaña
               </Button>
-              <Button className="gap-1.5" onClick={imprimirReciboVista}>
+              <Button variant="outline" className="gap-1.5" onClick={imprimirReciboVista}>
                 <Printer className="size-4" />
-                Imprimir / PDF
+                Imprimir
+              </Button>
+              <Button
+                className="gap-1.5"
+                disabled={reciboPdfBusy || !reciboVista}
+                onClick={() => void descargarPdfRecibo()}
+              >
+                <Download className="size-4" />
+                {reciboPdfBusy ? "Generando…" : "Descargar PDF"}
               </Button>
             </div>
           </DialogFooter>

@@ -38,6 +38,14 @@ function escapeHtml(s: string): string {
     .replaceAll('"', "&quot;");
 }
 
+/** Fecha local YYYY-MM-DD (no usar toISOString: en UTC-4 salta de día por la noche). */
+function fechaLocalISO(date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 /** HTML del recibo (vista previa e impresión). */
 export function buildReciboHtml(pago: ReciboPago, opts?: { embed?: boolean }): string {
   const embed = opts?.embed ?? false;
@@ -108,7 +116,7 @@ export function buildReciboHtml(pago: ReciboPago, opts?: { embed?: boolean }): s
     </table>
     <p class="foot">
       Este documento acredita el registro del pago en SIGOC.
-      Emitido el ${formatFechaBO(new Date().toISOString().slice(0, 10))}.
+      Emitido el ${formatFechaBO(fechaLocalISO())}.
       Conserve este recibo como constancia de renovación del plan.
     </p>
   </div>
@@ -142,4 +150,83 @@ export function imprimirIframeRecibo(iframe: HTMLIFrameElement | null): void {
   }
   win.focus();
   win.print();
+}
+
+/** Genera y descarga un PDF del recibo (para enviar por WhatsApp, etc.). */
+export async function descargarReciboPdf(pago: ReciboPago): Promise<void> {
+  const { jsPDF } = await import("jspdf");
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const marginX = 20;
+  const pageW = doc.internal.pageSize.getWidth();
+  let y = 22;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(22);
+  doc.setTextColor(28, 36, 51);
+  doc.text("SIGOC", marginX, y);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(91, 101, 120);
+  doc.text("Sistema de Gestión de Obras Civiles · Bolivia", marginX, y + 6);
+
+  doc.setFillColor(229, 162, 59);
+  doc.roundedRect(pageW - marginX - 38, y - 6, 38, 8, 1.5, 1.5, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(28, 36, 51);
+  doc.text("RECIBO DE PAGO", pageW - marginX - 19, y - 0.5, { align: "center" });
+
+  y += 14;
+  doc.setDrawColor(229, 162, 59);
+  doc.setLineWidth(0.6);
+  doc.line(marginX, y, pageW - marginX, y);
+
+  y += 12;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.setTextColor(28, 36, 51);
+  doc.text("Comprobante de renovación", marginX, y);
+
+  const rows: [string, string][] = [
+    ["Nº recibo", pago.numero],
+    ["Cliente / empresa", pago.empresa_nombre],
+    ["Fecha de pago", formatFechaBO(pago.fecha_pago)],
+    ["Plan", `Esencial — ${periodoLabel(pago.periodo)}`],
+    ["Método", metodoLabel(pago.metodo)],
+    ["Vigencia", `${formatFechaBO(pago.vigencia_desde)} - ${formatFechaBO(pago.vigencia_hasta)}`],
+    ["Monto pagado", moneyBO(pago.monto)],
+  ];
+
+  y += 10;
+  for (const [label, value] of rows) {
+    doc.setDrawColor(238, 241, 246);
+    doc.setLineWidth(0.2);
+    doc.line(marginX, y + 5, pageW - marginX, y + 5);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(91, 101, 120);
+    doc.text(label, marginX, y);
+
+    doc.setFont("helvetica", label === "Monto pagado" || label === "Nº recibo" ? "bold" : "normal");
+    doc.setFontSize(label === "Monto pagado" ? 13 : 10);
+    doc.setTextColor(28, 36, 51);
+    const valueLines = doc.splitTextToSize(value, pageW - marginX * 2 - 55);
+    doc.text(valueLines, marginX + 55, y);
+    y += Math.max(10, valueLines.length * 5 + 4);
+  }
+
+  y += 6;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(91, 101, 120);
+  const foot = doc.splitTextToSize(
+    `Este documento acredita el registro del pago en SIGOC. Emitido el ${formatFechaBO(fechaLocalISO())}. Conserve este recibo como constancia de renovación del plan.`,
+    pageW - marginX * 2,
+  );
+  doc.text(foot, marginX, y);
+
+  const filename = `${pago.numero}.pdf`;
+  doc.save(filename);
 }
