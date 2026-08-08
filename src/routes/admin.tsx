@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Building2, CalendarClock, Plus, RefreshCw, Shield, Users, Pencil, Receipt } from "lucide-react";
+import { Building2, CalendarClock, Plus, RefreshCw, Shield, Users, Pencil, Receipt, Printer } from "lucide-react";
 import { PageHeader, AccesoDenegado } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +41,12 @@ import {
   type Suscripcion,
   type SuscripcionPeriodo,
 } from "@/lib/subscription";
-import { imprimirRecibo, type ReciboPago } from "@/lib/recibo";
+import {
+  buildReciboHtml,
+  imprimirIframeRecibo,
+  imprimirRecibo,
+  type ReciboPago,
+} from "@/lib/recibo";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -96,6 +101,8 @@ function AdminPage() {
   });
   const [pagoConfirm, setPagoConfirm] = useState<Row | null>(null);
   const [pagoPeriodo, setPagoPeriodo] = useState<SuscripcionPeriodo>("mensual");
+  const [reciboVista, setReciboVista] = useState<ReciboPago | null>(null);
+  const reciboIframeRef = useRef<HTMLIFrameElement | null>(null);
   const [form, setForm] = useState({
     empresa: "",
     nit: "",
@@ -254,8 +261,22 @@ function AdminPage() {
   );
 
   const abrirRecibo = (pago: ReciboPago) => {
+    setReciboVista(pago);
+  };
+
+  const imprimirReciboVista = () => {
     try {
-      imprimirRecibo(pago);
+      imprimirIframeRecibo(reciboIframeRef.current);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "No se pudo imprimir el recibo";
+      toast.error(msg);
+    }
+  };
+
+  const abrirReciboPestana = () => {
+    if (!reciboVista) return;
+    try {
+      imprimirRecibo(reciboVista);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "No se pudo abrir el recibo";
       toast.error(msg);
@@ -1155,6 +1176,46 @@ function AdminPage() {
             >
               {busyId ? "Procesando…" : "Confirmar pago"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(reciboVista)}
+        onOpenChange={(open) => {
+          if (!open) setReciboVista(null);
+        }}
+      >
+        <DialogContent className="flex max-h-[92dvh] flex-col gap-3 sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-2xl tracking-wide uppercase">
+              Recibo {reciboVista?.numero ?? ""}
+            </DialogTitle>
+            <DialogDescription>
+              Vista previa del comprobante. Puede imprimir o guardar como PDF.
+            </DialogDescription>
+          </DialogHeader>
+          {reciboVista ? (
+            <iframe
+              ref={reciboIframeRef}
+              title={`Recibo ${reciboVista.numero}`}
+              className="min-h-[420px] w-full flex-1 rounded-md border border-border bg-white"
+              srcDoc={buildReciboHtml(reciboVista, { embed: true })}
+            />
+          ) : null}
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button variant="outline" onClick={() => setReciboVista(null)}>
+              Cerrar
+            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" className="gap-1.5" onClick={abrirReciboPestana}>
+                Abrir pestaña
+              </Button>
+              <Button className="gap-1.5" onClick={imprimirReciboVista}>
+                <Printer className="size-4" />
+                Imprimir / PDF
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -30,9 +30,18 @@ function metodoLabel(m?: string | null): string {
   return m || "Transferencia / QR";
 }
 
-/** Abre ventana imprimible del recibo (el usuario puede guardar como PDF). */
-export function imprimirRecibo(pago: ReciboPago): void {
-  const html = `<!DOCTYPE html>
+function escapeHtml(s: string): string {
+  return s
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+/** HTML del recibo (vista previa e impresión). */
+export function buildReciboHtml(pago: ReciboPago, opts?: { embed?: boolean }): string {
+  const embed = opts?.embed ?? false;
+  return `<!DOCTYPE html>
 <html lang="es-BO">
 <head>
   <meta charset="utf-8" />
@@ -43,7 +52,7 @@ export function imprimirRecibo(pago: ReciboPago): void {
       font-family: "Segoe UI", system-ui, sans-serif;
       color: #1c2433;
       margin: 0;
-      padding: 32px;
+      padding: ${embed ? "16px" : "32px"};
       background: #fff;
     }
     .sheet { max-width: 640px; margin: 0 auto; border: 1px solid #d8dee8; border-radius: 8px; padding: 28px 32px; }
@@ -64,17 +73,21 @@ export function imprimirRecibo(pago: ReciboPago): void {
     }
     .actions button.secondary { background: #fff; color: #1c2433; }
     @media print {
-      .actions { display: none; }
+      .actions { display: none !important; }
       body { padding: 0; }
       .sheet { border: none; }
     }
   </style>
 </head>
 <body>
-  <div class="actions">
-    <button onclick="window.print()">Imprimir / Guardar PDF</button>
-    <button class="secondary" onclick="window.close()">Cerrar</button>
-  </div>
+  ${
+    embed
+      ? ""
+      : `<div class="actions">
+    <button type="button" onclick="window.print()">Imprimir / Guardar PDF</button>
+    <button type="button" class="secondary" onclick="window.close()">Cerrar</button>
+  </div>`
+  }
   <div class="sheet">
     <div class="head">
       <div>
@@ -101,20 +114,32 @@ export function imprimirRecibo(pago: ReciboPago): void {
   </div>
 </body>
 </html>`;
-
-  const w = window.open("", "_blank", "noopener,noreferrer,width=720,height=900");
-  if (!w) {
-    throw new Error("El navegador bloqueó la ventana del recibo. Permita ventanas emergentes.");
-  }
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
 }
 
-function escapeHtml(s: string): string {
-  return s
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+/**
+ * Abre el recibo en una pestaña nueva (debe llamarse en respuesta directa a un clic).
+ * Tras await/async el navegador suele bloquear popups; use vista previa en diálogo.
+ */
+export function imprimirRecibo(pago: ReciboPago): void {
+  const html = buildReciboHtml(pago);
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const w = window.open(url, "_blank");
+  if (!w) {
+    URL.revokeObjectURL(url);
+    throw new Error(
+      "El navegador bloqueó la ventana del recibo. Use “Imprimir” en la vista previa.",
+    );
+  }
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+/** Imprime el contenido de un iframe (vista previa embebida). */
+export function imprimirIframeRecibo(iframe: HTMLIFrameElement | null): void {
+  const win = iframe?.contentWindow;
+  if (!win) {
+    throw new Error("No se pudo preparar la impresión del recibo.");
+  }
+  win.focus();
+  win.print();
 }
