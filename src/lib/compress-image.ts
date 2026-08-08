@@ -1,4 +1,4 @@
-/** Comprime una imagen en el cliente (JPEG, lado máx. ~1600px). */
+/** Comprime una imagen en el cliente (JPEG, lado máx. ~1280–1600px). */
 export type CompressResult = {
   blob: Blob;
   file: File;
@@ -33,16 +33,51 @@ type DecodedImage = {
   close: () => void;
 };
 
-/** Decodifica con createImageBitmap; si falla (móvil/HEIC), usa Image. */
-async function decodeImage(file: File): Promise<DecodedImage> {
+function targetSize(srcW: number, srcH: number, maxSide: number) {
+  const scale = Math.min(1, maxSide / Math.max(srcW, srcH));
+  return {
+    w: Math.max(1, Math.round(srcW * scale)),
+    h: Math.max(1, Math.round(srcH * scale)),
+  };
+}
+
+/** Decodifica redimensionando en el decode cuando el navegador lo permite (menos RAM en móvil). */
+async function decodeImage(file: File, maxSide: number): Promise<DecodedImage> {
   try {
-    const bitmap = await createImageBitmap(file);
-    return {
-      width: bitmap.width,
-      height: bitmap.height,
-      draw: (ctx, w, h) => ctx.drawImage(bitmap, 0, 0, w, h),
-      close: () => bitmap.close(),
-    };
+    // Primero intentamos obtener tamaño y redimensionar en un solo paso.
+    const probe = await createImageBitmap(file);
+    const { w, h } = targetSize(probe.width, probe.height, maxSide);
+    if (probe.width === w && probe.height === h) {
+      return {
+        width: probe.width,
+        height: probe.height,
+        draw: (ctx, dw, dh) => ctx.drawImage(probe, 0, 0, dw, dh),
+        close: () => probe.close(),
+      };
+    }
+    probe.close();
+
+    try {
+      const resized = await createImageBitmap(file, {
+        resizeWidth: w,
+        resizeHeight: h,
+        resizeQuality: "medium",
+      });
+      return {
+        width: resized.width,
+        height: resized.height,
+        draw: (ctx, dw, dh) => ctx.drawImage(resized, 0, 0, dw, dh),
+        close: () => resized.close(),
+      };
+    } catch {
+      const full = await createImageBitmap(file);
+      return {
+        width: full.width,
+        height: full.height,
+        draw: (ctx, dw, dh) => ctx.drawImage(full, 0, 0, dw, dh),
+        close: () => full.close(),
+      };
+    }
   } catch {
     const url = URL.createObjectURL(file);
     try {
@@ -65,6 +100,11 @@ async function decodeImage(file: File): Promise<DecodedImage> {
   }
 }
 
+function isMobileClient() {
+  if (typeof navigator === "undefined") return false;
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+}
+
 export async function compressImage(
   input: File,
   opts?: { maxSide?: number; quality?: number },
@@ -73,19 +113,18 @@ export async function compressImage(
     throw new Error("El archivo de imagen está vacío");
   }
 
-  const maxSide = opts?.maxSide ?? 1600;
-  const preferredQuality = opts?.quality ?? 0.72;
+  const mobile = isMobileClient();
+  const maxSide = opts?.maxSide ?? (mobile ? 1280 : 1600);
+  const preferredQuality = opts?.quality ?? (mobile ? 0.65 : 0.72);
   const originalBytes = input.size;
 
-  const decoded = await decodeImage(input);
+  const decoded = await decodeImage(input, maxSide);
   try {
     if (!decoded.width || !decoded.height) {
       throw new Error("La imagen no tiene dimensiones válidas");
     }
 
-    const scale = Math.min(1, maxSide / Math.max(decoded.width, decoded.height));
-    const w = Math.max(1, Math.round(decoded.width * scale));
-    const h = Math.max(1, Math.round(decoded.height * scale));
+    const { w, h } = targetSize(decoded.width, decoded.height, maxSide);
 
     const canvas = document.createElement("canvas");
     canvas.width = w;
@@ -102,14 +141,13 @@ export async function compressImage(
       if (candidate.size < best.size) best = candidate;
     }
 
-    // Si el JPEG sigue siendo más grande, conservar el archivo original.
-    const useOriginal = best.size >= originalBytes;
-    const blob: Blob = useOriginal ? input : best;
+    // En móvil/cámara nunca conservar el original gigante: preferir JPEG comprimido.
+    const keepOriginal =
+      !mobile && best.size >= originalBytes && originalBytes < 800_000;
+    const blob: Blob = keepOriginal ? input : best;
     const baseName = (input.name || "foto").replace(/\.[^.]+$/, "") || "foto";
-    const name = useOriginal ? input.name || `${baseName}.jpg` : `${baseName}.jpg`;
-    const type = useOriginal
-      ? input.type || "image/jpeg"
-      : "image/jpeg";
+    const name = keepOriginal ? input.name || `${baseName}.jpg` : `${baseName}.jpg`;
+    const type = keepOriginal ? input.type || "image/jpeg" : "image/jpeg";
     const file = new File([blob], name, { type });
     const previewUrl = URL.createObjectURL(blob);
     const compressedBytes = blob.size;

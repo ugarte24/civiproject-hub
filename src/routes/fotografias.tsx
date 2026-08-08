@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Plus, Trash2, Pencil, MapPin, Camera as CameraIcon, User, ImageIcon } from "lucide-react";
+import { Plus, Trash2, Pencil, MapPin, Camera as CameraIcon, User, ImageIcon, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -132,9 +132,17 @@ function FotografiasPage() {
     }
     pickingFileRef.current = true;
     setOpen(true);
+
+    // Vista previa inmediata (antes de comprimir) para no “perder” la foto en móvil.
+    if (preview.startsWith("blob:")) URL.revokeObjectURL(preview);
+    const quickUrl = URL.createObjectURL(file);
+    setPreview(quickUrl);
+    setCompressedFile(file);
+    setSizeInfo("Procesando imagen…");
+
     try {
-      if (preview.startsWith("blob:")) URL.revokeObjectURL(preview);
       const result = await compressImage(file);
+      if (quickUrl.startsWith("blob:")) URL.revokeObjectURL(quickUrl);
       setCompressedFile(result.file);
       setPreview(result.previewUrl);
       if (result.savedRatio > 0.01) {
@@ -150,15 +158,24 @@ function FotografiasPage() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "No se pudo comprimir";
       toast.error(msg);
+      setSizeInfo("");
     } finally {
+      // Mantener el diálogo protegido un poco más tras volver de la cámara.
       window.setTimeout(() => {
         pickingFileRef.current = false;
-      }, 800);
+      }, 2000);
     }
   };
 
   const beginPickFile = () => {
     pickingFileRef.current = true;
+  };
+
+  const quitarFoto = () => {
+    if (preview.startsWith("blob:")) URL.revokeObjectURL(preview);
+    setPreview("");
+    setCompressedFile(null);
+    setSizeInfo("");
   };
 
   const resetForm = () => {
@@ -427,13 +444,25 @@ function FotografiasPage() {
                 </Field>
                 <div className="sm:col-span-2">
                   <p className="label-kicker">Vista previa</p>
-                  <div className="mt-2 flex min-h-[12rem] max-h-[50vh] items-center justify-center overflow-auto rounded-md border border-dashed border-border bg-muted/50 p-2">
+                  <div className="relative mt-2 flex min-h-[12rem] max-h-[50vh] items-center justify-center overflow-auto rounded-md border border-dashed border-border bg-muted/50 p-2">
                     {preview ? (
-                      <img
-                        src={preview}
-                        alt="Vista previa"
-                        className="max-h-[46vh] w-auto max-w-full object-contain"
-                      />
+                      <>
+                        <img
+                          src={preview}
+                          alt="Vista previa"
+                          className="max-h-[46vh] w-auto max-w-full object-contain"
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="icon"
+                          className="absolute top-2 right-2 size-8 rounded-full border border-border bg-background/90 text-destructive shadow-sm hover:bg-background hover:text-destructive"
+                          onClick={quitarFoto}
+                          aria-label="Quitar foto"
+                        >
+                          <X className="size-4" />
+                        </Button>
+                      </>
                     ) : (
                       <span className="text-xs text-muted-foreground">Sin imagen seleccionada</span>
                     )}

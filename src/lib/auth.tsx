@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -125,6 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<AuthProfile | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionStatus>(emptySubscription);
   const [loading, setLoading] = useState(true);
+  const profileUserIdRef = useRef<string | null>(null);
 
   const loadSubscriptionForProfile = useCallback(async (p: AuthProfile | null) => {
     if (!p) {
@@ -170,17 +172,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const applyProfile = useCallback(
-    async (nextSession: Session | null) => {
+    async (nextSession: Session | null, opts?: { force?: boolean }) => {
       if (!nextSession?.user) {
+        profileUserIdRef.current = null;
         setProfile(null);
         setRole("Consulta");
         setSubscription({ ...emptySubscription, loading: false });
         return;
       }
 
+      // Evitar refetch innecesario (desktop y móvil): mismo usuario ya cargado.
+      if (
+        !opts?.force &&
+        profileUserIdRef.current === nextSession.user.id
+      ) {
+        return;
+      }
+
       try {
         const p = await fetchProfile(nextSession.user.id);
         if (p) {
+          profileUserIdRef.current = p.id;
           setProfile(p);
           // UI: SuperAdmin no usa menú de obra aunque el perfil DB tenga rol Administrador
           setRole(p.es_superadmin ? "SuperAdmin" : p.rol);
@@ -199,6 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             empresa_id: null,
             es_superadmin: false,
           };
+          profileUserIdRef.current = fallback.id;
           setProfile(fallback);
           setRole("Consulta");
           await loadSubscriptionForProfile(fallback);
@@ -215,6 +228,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           empresa_id: null,
           es_superadmin: false,
         };
+        profileUserIdRef.current = fallback.id;
         setProfile(fallback);
         setRole("Consulta");
         setSubscription({
@@ -226,15 +240,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [setRole, loadSubscriptionForProfile],
   );
 
+  /** Actualiza perfil sin pantallas de carga globales (desktop y móvil). */
   const refreshProfile = useCallback(async () => {
-    setLoading(true);
-    setSubscription({ ...emptySubscription, loading: true });
-    try {
-      const { data } = await supabase.auth.getSession();
-      await applyProfile(data.session);
-    } finally {
-      setLoading(false);
-    }
+    const { data } = await supabase.auth.getSession();
+    await applyProfile(data.session, { force: true });
   }, [applyProfile]);
 
   const refreshSubscription = useCallback(async () => {
@@ -243,25 +252,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+    let bootstrapped = false;
 
     void (async () => {
       const { data } = await supabase.auth.getSession();
       if (!mounted) return;
       setSession(data.session);
-      await applyProfile(data.session);
-      if (mounted) setLoading(false);
+      await applyProfile(data.session, { force: true });
+      if (mounted) {
+        setLoading(false);
+        bootstrapped = true;
+      }
     })();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
-      setSession(next);
-      setLoading(true);
-      if (next) {
-        setSubscription({ ...emptySubscription, loading: true });
+    const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
+      if (!mounted) return;
+
+      // Actualizar token en memoria sin forzar re-fetch de perfil.
+      setSession((prev) => {
+        if (
+          prev?.access_token === next?.access_token &&
+          prev?.user?.id === next?.user?.id
+        ) {
+          return prev;
+        }
+        return next;
+      });
+
+      if (!bootstrapped) return;
+
+      // Desktop y móvil: estos eventos son frecuentes (pestaña en segundo plano,
+      // selector de archivos, cámara, despertar del SO). Nunca desmontar la UI.
+      if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
+        return;
       }
-      void (async () => {
-        await applyProfile(next);
+
+      if (event === "SIGNED_OUT") {
+        profileUserIdRef.current = null;
+        setProfile(null);
+        setSubscription({ ...emptySubscription, loading: false });
         setLoading(false);
-      })();
+        return;
+      }
+
+      // Recuperación de sesión / mismo usuario: solo token (ya en setSession).
+      if (
+        (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
+        next?.user?.id &&
+        profileUserIdRef.current === next.user.id
+      ) {
+        return;
+      }
+
+      // Login real u otro cambio de usuario: perfil sin LoadingScreen global.
+      void applyProfile(next, { force: true });
     });
 
     return () => {

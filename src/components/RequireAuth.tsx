@@ -26,8 +26,10 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     }
   }, [loading, session, isSuperAdmin, pathname, navigate]);
 
-  // Esperar sesión + perfil + suscripción para no mostrar "Plan vencido" en falso
-  if (loading || subscription.loading || (session && !profile)) {
+  // Solo bloquear en la carga INICIAL (aún no hay perfil).
+  // Tras eso, ni en desktop ni en móvil un refresh de token debe desmontar
+  // diálogos, selectores de archivo ni formularios.
+  if (!profile && (loading || subscription.loading || Boolean(session))) {
     return <LoadingScreen message="Cargando sesión…" />;
   }
 

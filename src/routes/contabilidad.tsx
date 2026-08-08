@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Plus, Paperclip, ImageIcon, Camera, Trash2, ExternalLink, Pencil } from "lucide-react";
+import { Plus, Paperclip, ImageIcon, Camera, Trash2, ExternalLink, Pencil, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -503,13 +503,25 @@ function ContabilidadPage() {
               <p className="mt-1.5 truncate text-xs text-muted-foreground">
                 {imgFile?.name || "Ningún archivo seleccionado"}
               </p>
-              <div className="mt-2 flex min-h-[10rem] max-h-[40vh] items-center justify-center overflow-auto rounded-md border border-dashed border-border bg-muted/50 p-2">
+              <div className="relative mt-2 flex min-h-[10rem] max-h-[40vh] items-center justify-center overflow-auto rounded-md border border-dashed border-border bg-muted/50 p-2">
                 {imgPreview ? (
-                  <img
-                    src={imgPreview}
-                    alt="Vista previa"
-                    className="max-h-[36vh] w-auto max-w-full object-contain"
-                  />
+                  <>
+                    <img
+                      src={imgPreview}
+                      alt="Vista previa"
+                      className="max-h-[36vh] w-auto max-w-full object-contain"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="icon"
+                      className="absolute top-2 right-2 size-8 rounded-full border border-border bg-background/90 text-destructive shadow-sm hover:bg-background hover:text-destructive"
+                      onClick={() => pickImage(null)}
+                      aria-label="Quitar foto"
+                    >
+                      <X className="size-4" />
+                    </Button>
+                  </>
                 ) : (
                   <span className="text-xs text-muted-foreground">Sin imagen seleccionada</span>
                 )}
