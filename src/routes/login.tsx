@@ -17,17 +17,17 @@ function LoginPage() {
   const { session, loading: authLoading, isSuperAdmin, refreshProfile } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!authLoading && session) {
+    if (!authLoading && session && !submitting) {
       void navigate({ to: isSuperAdmin ? "/admin" : "/" });
     }
-  }, [authLoading, session, isSuperAdmin, navigate]);
+  }, [authLoading, session, isSuperAdmin, navigate, submitting]);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setSubmitting(true);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
@@ -42,17 +42,22 @@ function LoginPage() {
           .maybeSingle();
         goAdmin = Boolean(prof?.es_superadmin);
       }
-      void navigate({ to: goAdmin ? "/admin" : "/" });
+      await navigate({ to: goAdmin ? "/admin" : "/" });
+      // Mantener submitting=true: no volver a mostrar el formulario al salir.
     } catch (err) {
       const msg = err instanceof Error ? err.message : "No se pudo iniciar sesión";
       toast.error(msg);
-    } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
-  if (authLoading) {
-    return <LoadingScreen message="Cargando…" />;
+  // Evita destello del formulario mientras carga auth, inicia sesión o ya hay sesión.
+  if (authLoading || submitting || session) {
+    return (
+      <LoadingScreen
+        message={submitting || session ? "Ingresando al sistema…" : "Cargando…"}
+      />
+    );
   }
 
   return (
@@ -89,8 +94,8 @@ function LoginPage() {
               placeholder="••••••••"
             />
           </div>
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Ingresando…" : "Ingresar"}
+          <Button type="submit" className="w-full" disabled={submitting}>
+            Ingresar
           </Button>
         </form>
       </div>

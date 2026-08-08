@@ -31,7 +31,10 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     return <LoadingScreen message="Cargando sesión…" />;
   }
 
-  if (!session) return null;
+  if (!session) {
+    // Redirigiendo a /login: no dejar un frame vacío / contenido residual
+    return <LoadingScreen message="Redirigiendo…" />;
+  }
 
   // SuperAdmin puede entrar a /admin aunque no tenga suscripción de cliente
   if (!subscription.vigente && !isSuperAdmin) {
