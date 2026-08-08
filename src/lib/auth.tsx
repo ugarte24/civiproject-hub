@@ -16,6 +16,7 @@ import {
   type Suscripcion,
   type SubscriptionStatus,
 } from "@/lib/subscription";
+import { shouldDeferSubscriptionCheck } from "@/lib/ui-busy";
 
 export interface AuthProfile {
   id: string;
@@ -249,6 +250,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshSubscription = useCallback(async () => {
     await loadSubscriptionForProfile(profile);
   }, [loadSubscriptionForProfile, profile]);
+
+  // Al volver del segundo plano / otra pestaña: verificar plan (suave).
+  // No hacerlo si hay diálogo abierto, cámara o formulario en uso.
+  useEffect(() => {
+    let timer: number | undefined;
+
+    const runCheck = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
+      if (shouldDeferSubscriptionCheck()) return;
+
+      // Recalcular con la fecha en memoria (p. ej. venció hoy a medianoche).
+      setSubscription((prev) => {
+        if (prev.loading || !prev.suscripcion) return prev;
+        return {
+          ...computeSubscriptionStatus(prev.suscripcion, { bypass: prev.bypass }),
+          loading: false,
+        };
+      });
+
+      void refreshSubscription();
+    };
+
+    const scheduleCheck = () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+      timer = window.setTimeout(runCheck, 350);
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") scheduleCheck();
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", scheduleCheck);
+
+    return () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("focus", scheduleCheck);
+    };
+  }, [refreshSubscription]);
 
   useEffect(() => {
     let mounted = true;

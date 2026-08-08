@@ -42,6 +42,7 @@ import {
   useProyectos,
   useUpdateDocumento,
 } from "@/lib/obra/hooks";
+import { setFilePickingBusy } from "@/lib/ui-busy";
 
 export const Route = createFileRoute("/documentos")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -398,6 +399,7 @@ function DocumentosPage() {
                     }
                     window.setTimeout(() => {
                       pickingFileRef.current = false;
+                      setFilePickingBusy(false);
                     }, 800);
                   }}
                 />
@@ -408,6 +410,7 @@ function DocumentosPage() {
                     className="gap-2"
                     onPointerDown={() => {
                       pickingFileRef.current = true;
+                      setFilePickingBusy(true);
                     }}
                     onClick={() => fileInputRef.current?.click()}
                   >

@@ -5,8 +5,21 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { popUiBusy, pushUiBusy } from "@/lib/ui-busy";
 
-const Dialog = DialogPrimitive.Root;
+function Dialog({
+  open,
+  onOpenChange,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Root>) {
+  React.useEffect(() => {
+    if (open !== true) return;
+    pushUiBusy();
+    return () => popUiBusy();
+  }, [open]);
+
+  return <DialogPrimitive.Root open={open} onOpenChange={onOpenChange} {...props} />;
+}
 
 const DialogTrigger = DialogPrimitive.Trigger;
 

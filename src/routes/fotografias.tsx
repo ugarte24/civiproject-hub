@@ -27,6 +27,7 @@ import { DateInput } from "@/components/DateInput";
 import { usePermisos, fecha, type Fotografia } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { compressImage, formatBytes } from "@/lib/compress-image";
+import { setFilePickingBusy } from "@/lib/ui-busy";
 import {
   signedUrl,
   useAddFotografia,
@@ -128,9 +129,11 @@ function FotografiasPage() {
   const onPickFile = async (file: File | undefined) => {
     if (!file) {
       pickingFileRef.current = false;
+      setFilePickingBusy(false);
       return;
     }
     pickingFileRef.current = true;
+    setFilePickingBusy(true);
     setOpen(true);
 
     // Vista previa inmediata (antes de comprimir) para no “perder” la foto en móvil.
@@ -163,12 +166,14 @@ function FotografiasPage() {
       // Mantener el diálogo protegido un poco más tras volver de la cámara.
       window.setTimeout(() => {
         pickingFileRef.current = false;
+        setFilePickingBusy(false);
       }, 2000);
     }
   };
 
   const beginPickFile = () => {
     pickingFileRef.current = true;
+    setFilePickingBusy(true);
   };
 
   const quitarFoto = () => {

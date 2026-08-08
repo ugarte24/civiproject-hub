@@ -22,6 +22,7 @@ import {
   useConfigEmpresa,
   useSaveConfigEmpresa,
 } from "@/lib/obra/hooks";
+import { setFilePickingBusy } from "@/lib/ui-busy";
 
 export const Route = createFileRoute("/configuracion")({
   head: () => ({
@@ -223,45 +224,53 @@ function ConfiguracionPage() {
         <Bloque icon={Palette} titulo="Logo y colores">
           <Field label="Logo institucional" full>
             <div className="space-y-3">
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <label className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
-                  <span className="flex items-center gap-2">
-                    <ImageIcon className="size-4" /> Galería
-                  </span>
-                  <span className="text-xs">Seleccionar imagen</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] ?? null;
-                      setLogoFile(file);
-                      setLogoNombre(file?.name ?? "");
-                      setClearLogo(false);
-                      e.target.value = "";
-                    }}
-                  />
-                </label>
-                <label className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
-                  <span className="flex items-center gap-2">
-                    <Camera className="size-4" /> Cámara
-                  </span>
-                  <span className="text-xs">Tomar foto</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] ?? null;
-                      setLogoFile(file);
-                      setLogoNombre(file?.name ?? "");
-                      setClearLogo(false);
-                      e.target.value = "";
-                    }}
-                  />
-                </label>
-              </div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <label
+                    className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted"
+                    onPointerDown={() => setFilePickingBusy(true)}
+                  >
+                    <span className="flex items-center gap-2">
+                      <ImageIcon className="size-4" /> Galería
+                    </span>
+                    <span className="text-xs">Seleccionar imagen</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] ?? null;
+                        setLogoFile(file);
+                        setLogoNombre(file?.name ?? "");
+                        setClearLogo(false);
+                        e.target.value = "";
+                        window.setTimeout(() => setFilePickingBusy(false), 800);
+                      }}
+                    />
+                  </label>
+                  <label
+                    className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted"
+                    onPointerDown={() => setFilePickingBusy(true)}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Camera className="size-4" /> Cámara
+                    </span>
+                    <span className="text-xs">Tomar foto</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] ?? null;
+                        setLogoFile(file);
+                        setLogoNombre(file?.name ?? "");
+                        setClearLogo(false);
+                        e.target.value = "";
+                        window.setTimeout(() => setFilePickingBusy(false), 800);
+                      }}
+                    />
+                  </label>
+                </div>
               <div className="flex flex-wrap items-center gap-2">
                 {(logoPreview || config?.logo_path) && !clearLogo ? (
                   <Button

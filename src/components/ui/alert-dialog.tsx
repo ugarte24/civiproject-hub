@@ -3,8 +3,21 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
+import { popUiBusy, pushUiBusy } from "@/lib/ui-busy";
 
-const AlertDialog = AlertDialogPrimitive.Root;
+function AlertDialog({
+  open,
+  onOpenChange,
+  ...props
+}: React.ComponentProps<typeof AlertDialogPrimitive.Root>) {
+  React.useEffect(() => {
+    if (open !== true) return;
+    pushUiBusy();
+    return () => popUiBusy();
+  }, [open]);
+
+  return <AlertDialogPrimitive.Root open={open} onOpenChange={onOpenChange} {...props} />;
+}
 
 const AlertDialogTrigger = AlertDialogPrimitive.Trigger;
 

@@ -41,6 +41,7 @@ import {
   useProyectos,
   useUpdateMovimiento,
 } from "@/lib/obra/hooks";
+import { setFilePickingBusy } from "@/lib/ui-busy";
 
 export const Route = createFileRoute("/contabilidad")({
   head: () => ({
@@ -123,11 +124,13 @@ function ContabilidadPage() {
     if (file) setPdfFile(null);
     window.setTimeout(() => {
       pickingFileRef.current = false;
+      setFilePickingBusy(false);
     }, 800);
   };
 
   const beginPickFile = () => {
     pickingFileRef.current = true;
+    setFilePickingBusy(true);
   };
 
   const resetForm = () => {
@@ -454,7 +457,10 @@ function ContabilidadPage() {
                     const f = e.target.files?.[0] ?? null;
                     setPdfFile(f);
                     if (f) pickImage(null);
-                    else pickingFileRef.current = false;
+                    else {
+                      pickingFileRef.current = false;
+                      setFilePickingBusy(false);
+                    }
                     e.target.value = "";
                   }}
                 />
