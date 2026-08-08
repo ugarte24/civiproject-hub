@@ -289,8 +289,12 @@ function AdminPage() {
     if (!reciboVista) return;
     setReciboPdfBusy(true);
     try {
-      await descargarReciboPdf(reciboVista);
-      toast.success(`PDF ${reciboVista.numero}.pdf descargado. Ya puede enviarlo por WhatsApp.`);
+      const resultado = await descargarReciboPdf(reciboVista);
+      toast.success(
+        resultado === "opened"
+          ? "PDF abierto. Desde el visor puede compartirlo por WhatsApp."
+          : `PDF ${reciboVista.numero}.pdf descargado. Ya puede enviarlo por WhatsApp.`,
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : "No se pudo descargar el PDF";
       toast.error(msg);

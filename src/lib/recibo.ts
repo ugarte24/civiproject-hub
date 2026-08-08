@@ -152,9 +152,17 @@ export function imprimirIframeRecibo(iframe: HTMLIFrameElement | null): void {
   win.print();
 }
 
-/** Genera y descarga un PDF del recibo (para enviar por WhatsApp, etc.). */
-export async function descargarReciboPdf(pago: ReciboPago): Promise<void> {
-  const { jsPDF } = await import("jspdf");
+function esDispositivoMovil(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  if (/Android|iPhone|iPad|iPod|Mobile/i.test(ua)) return true;
+  return navigator.maxTouchPoints > 1 && window.matchMedia("(max-width: 1024px)").matches;
+}
+
+function buildReciboPdfDoc(
+  jsPDF: typeof import("jspdf").jsPDF,
+  pago: ReciboPago,
+): InstanceType<typeof import("jspdf").jsPDF> {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const marginX = 20;
   const pageW = doc.internal.pageSize.getWidth();
@@ -227,6 +235,61 @@ export async function descargarReciboPdf(pago: ReciboPago): Promise<void> {
   );
   doc.text(foot, marginX, y);
 
-  const filename = `${pago.numero}.pdf`;
-  doc.save(filename);
+  return doc;
+}
+
+/**
+ * En escritorio descarga el PDF.
+ * En móvil abre el PDF en una pestaña/visor para compartirlo (WhatsApp, etc.).
+ */
+export async function descargarReciboPdf(
+  pago: ReciboPago,
+): Promise<"opened" | "downloaded"> {
+  const mobile = esDispositivoMovil();
+  // Abrir en el mismo gesto del usuario; si se espera al await, iOS/Android bloquean el popup.
+  const preview = mobile ? window.open("about:blank", "_blank") : null;
+  if (preview) {
+    try {
+      preview.document.open();
+      preview.document.write(
+        `<!DOCTYPE html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Generando PDF…</title></head><body style="margin:0;font-family:system-ui,sans-serif;display:grid;place-items:center;min-height:100dvh;color:#1c2433;background:#f7f8fa"><p>Generando recibo PDF…</p></body></html>`,
+      );
+      preview.document.close();
+    } catch {
+      // ignore
+    }
+  }
+
+  try {
+    const { jsPDF } = await import("jspdf");
+    const doc = buildReciboPdfDoc(jsPDF, pago);
+    const filename = `${pago.numero}.pdf`;
+    const blob = doc.output("blob");
+    const url = URL.createObjectURL(blob);
+
+    if (mobile) {
+      if (preview && !preview.closed) {
+        preview.location.href = url;
+      } else {
+        const a = document.createElement("a");
+        a.href = url;
+        a.target = "_blank";
+        a.rel = "noopener";
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+      window.setTimeout(() => URL.revokeObjectURL(url), 120_000);
+      return "opened";
+    }
+
+    if (preview && !preview.closed) preview.close();
+    doc.save(filename);
+    URL.revokeObjectURL(url);
+    return "downloaded";
+  } catch (err) {
+    if (preview && !preview.closed) preview.close();
+    throw err;
+  }
 }
