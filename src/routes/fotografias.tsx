@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Plus, Trash2, Pencil, MapPin, Camera as CameraIcon, User } from "lucide-react";
+import { Plus, Trash2, Pencil, MapPin, Camera as CameraIcon, User, ImageIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -341,12 +341,43 @@ function FotografiasPage() {
             </Field>
             {!editing ? (
               <>
-                <Field label="Seleccionar imagen" full error={touched ? errores["imagen"] : undefined}>
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => void onPickFile(e.target.files?.[0])}
-                  />
+                <Field label="Imagen o foto" full error={touched ? errores["imagen"] : undefined}>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <label className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
+                      <span className="flex items-center gap-2">
+                        <ImageIcon className="size-4" /> Galería
+                      </span>
+                      <span className="text-xs">Seleccionar imagen</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          void onPickFile(e.target.files?.[0]);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                    <label className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
+                      <span className="flex items-center gap-2">
+                        <CameraIcon className="size-4" /> Cámara
+                      </span>
+                      <span className="text-xs">Tomar foto</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(e) => {
+                          void onPickFile(e.target.files?.[0]);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  </div>
+                  <p className="mt-1.5 truncate text-xs text-muted-foreground">
+                    {compressedFile?.name || "Ningún archivo seleccionado"}
+                  </p>
                   {sizeInfo ? (
                     <p className="mt-1 text-xs text-muted-foreground">{sizeInfo}</p>
                   ) : null}

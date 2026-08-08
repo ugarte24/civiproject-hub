@@ -1,7 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Plus, Trash2, Pencil, FileText, FileSpreadsheet, FileArchive, PenTool, File } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Pencil,
+  FileText,
+  FileSpreadsheet,
+  FileArchive,
+  PenTool,
+  File,
+  Paperclip,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -88,6 +98,7 @@ function DocumentosPage() {
   const [editing, setEditing] = useState<Documento | null>(null);
   const [touched, setTouched] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     nombre: "",
     categoria: "Planos" as DocCategoria,
@@ -353,9 +364,11 @@ function DocumentosPage() {
             </Field>
             {!editing ? (
               <Field label="Archivo" error={touched ? errores["archivo"] : undefined} full>
-                <Input
+                <input
+                  ref={fileInputRef}
                   type="file"
                   accept=".pdf,.doc,.docx,.xls,.xlsx,.dwg,.zip"
+                  className="sr-only"
                   onChange={(e) => {
                     const f = e.target.files?.[0] ?? null;
                     setFile(f);
@@ -367,6 +380,23 @@ function DocumentosPage() {
                     }
                   }}
                 />
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Paperclip className="size-4" />
+                    Seleccionar archivo
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    {file?.name || "Ningún archivo seleccionado"}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Formatos: PDF, Word, Excel, DWG o ZIP
+                </p>
               </Field>
             ) : null}
             <Field label="Descripción" full>

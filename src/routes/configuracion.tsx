@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Building2, Palette, DatabaseBackup, BellRing, SlidersHorizontal } from "lucide-react";
+import { Building2, Palette, DatabaseBackup, BellRing, SlidersHorizontal, ImageIcon, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -87,7 +87,6 @@ function ConfiguracionPage() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [clearLogo, setClearLogo] = useState(false);
   const [backingUp, setBackingUp] = useState(false);
-  const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!config) return;
@@ -223,19 +222,7 @@ function ConfiguracionPage() {
 
         <Bloque icon={Palette} titulo="Logo y colores">
           <Field label="Logo institucional" full>
-            <input
-              ref={logoInputRef}
-              type="file"
-              accept="image/*"
-              className="sr-only"
-              onChange={(e) => {
-                const file = e.target.files?.[0] ?? null;
-                setLogoFile(file);
-                setLogoNombre(file?.name ?? "");
-                setClearLogo(false);
-              }}
-            />
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-start gap-3">
               {logoPreview ? (
                 <img
                   src={logoPreview}
@@ -243,36 +230,71 @@ function ConfiguracionPage() {
                   className="size-14 rounded-md border border-border object-contain bg-muted/40"
                 />
               ) : null}
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => logoInputRef.current?.click()}
-              >
-                Seleccionar imagen
-              </Button>
-              {(logoPreview || config?.logo_path) && !clearLogo ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="text-destructive"
-                  onClick={() => {
-                    setLogoFile(null);
-                    setLogoNombre("");
-                    setClearLogo(true);
-                    if (logoInputRef.current) logoInputRef.current.value = "";
-                  }}
-                >
-                  Quitar logo
-                </Button>
-              ) : null}
-              <span className="text-sm text-muted-foreground">
-                {logoNombre ||
-                  (clearLogo
-                    ? "Se quitará al guardar"
-                    : config?.logo_path
-                      ? "Logo guardado"
-                      : "Ningún archivo seleccionado")}
-              </span>
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <label className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
+                    <span className="flex items-center gap-2">
+                      <ImageIcon className="size-4" /> Galería
+                    </span>
+                    <span className="text-xs">Seleccionar imagen</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] ?? null;
+                        setLogoFile(file);
+                        setLogoNombre(file?.name ?? "");
+                        setClearLogo(false);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  <label className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
+                    <span className="flex items-center gap-2">
+                      <Camera className="size-4" /> Cámara
+                    </span>
+                    <span className="text-xs">Tomar foto</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] ?? null;
+                        setLogoFile(file);
+                        setLogoNombre(file?.name ?? "");
+                        setClearLogo(false);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {(logoPreview || config?.logo_path) && !clearLogo ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-8 px-2 text-destructive"
+                      onClick={() => {
+                        setLogoFile(null);
+                        setLogoNombre("");
+                        setClearLogo(true);
+                      }}
+                    >
+                      Quitar logo
+                    </Button>
+                  ) : null}
+                  <span className="text-sm text-muted-foreground">
+                    {logoNombre ||
+                      (clearLogo
+                        ? "Se quitará al guardar"
+                        : config?.logo_path
+                          ? "Logo guardado"
+                          : "Ningún archivo seleccionado")}
+                  </span>
+                </div>
+              </div>
             </div>
           </Field>
           <div className="flex flex-wrap gap-3">

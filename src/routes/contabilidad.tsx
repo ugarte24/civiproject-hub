@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Plus, Paperclip, ImageIcon, Trash2, ExternalLink, Pencil } from "lucide-react";
+import { Plus, Paperclip, ImageIcon, Camera, Trash2, ExternalLink, Pencil } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -412,25 +412,47 @@ function ContabilidadPage() {
                 />
               </label>
             </Field>
-            <Field label="Adjuntar imagen">
-              <label className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
-                <span className="flex items-center gap-2">
-                  <ImageIcon className="size-4" /> Seleccionar imagen
-                </span>
-                <span className="truncate text-xs">
-                  {imgFile?.name || "Ningún archivo seleccionado"}
-                </span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0] ?? null;
-                    setImgFile(f);
-                    if (f) setPdfFile(null);
-                  }}
-                />
-              </label>
+            <Field label="Adjuntar imagen o foto" full>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <label className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
+                  <span className="flex items-center gap-2">
+                    <ImageIcon className="size-4" /> Galería
+                  </span>
+                  <span className="text-xs">Seleccionar imagen</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null;
+                      setImgFile(f);
+                      if (f) setPdfFile(null);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+                <label className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
+                  <span className="flex items-center gap-2">
+                    <Camera className="size-4" /> Cámara
+                  </span>
+                  <span className="text-xs">Tomar foto</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null;
+                      setImgFile(f);
+                      if (f) setPdfFile(null);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              </div>
+              <p className="mt-1.5 truncate text-xs text-muted-foreground">
+                {imgFile?.name || "Ningún archivo seleccionado"}
+              </p>
             </Field>
             <Field label="Observación" full>
               <Textarea
