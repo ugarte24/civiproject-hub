@@ -6,7 +6,7 @@ export function getAppVersionLabel(): string {
   return `v${raw}`;
 }
 
-/** Texto del pie del menú: SIGOC v1.2.0 */
+/** Texto del pie del menú: SIGOC v1.3.0 */
 export function getAppFooterLabel(): string {
   return `SIGOC ${getAppVersionLabel()}`;
 }
