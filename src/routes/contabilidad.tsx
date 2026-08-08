@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Plus, Paperclip, ImageIcon, Camera, Trash2, ExternalLink, Pencil } from "lucide-react";
@@ -77,6 +77,8 @@ function ContabilidadPage() {
   const [touched, setTouched] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [imgFile, setImgFile] = useState<File | null>(null);
+  const [imgPreview, setImgPreview] = useState("");
+  const pickingFileRef = useRef(false);
   const [form, setForm] = useState({
     proveedor: "",
     nit: "",
@@ -104,10 +106,35 @@ function ContabilidadPage() {
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
+  const clearImgPreview = () => {
+    setImgPreview((prev) => {
+      if (prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return "";
+    });
+  };
+
+  const pickImage = (file: File | null) => {
+    setOpen(true);
+    setImgPreview((prev) => {
+      if (prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return file ? URL.createObjectURL(file) : "";
+    });
+    setImgFile(file);
+    if (file) setPdfFile(null);
+    window.setTimeout(() => {
+      pickingFileRef.current = false;
+    }, 800);
+  };
+
+  const beginPickFile = () => {
+    pickingFileRef.current = true;
+  };
+
   const resetForm = () => {
     setEditing(null);
     setPdfFile(null);
     setImgFile(null);
+    clearImgPreview();
     setTouched(false);
     setForm((f) => ({
       ...f,
@@ -141,6 +168,7 @@ function ContabilidadPage() {
     });
     setPdfFile(null);
     setImgFile(null);
+    clearImgPreview();
     setTouched(false);
     setOpen(true);
   };
@@ -333,11 +361,26 @@ function ContabilidadPage() {
       <Dialog
         open={open}
         onOpenChange={(v) => {
+          if (!v && pickingFileRef.current) {
+            setOpen(true);
+            return;
+          }
           setOpen(v);
           if (!v) resetForm();
         }}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+        <DialogContent
+          className="max-h-[90vh] overflow-y-auto sm:max-w-xl"
+          onPointerDownOutside={(e) => {
+            if (pickingFileRef.current) e.preventDefault();
+          }}
+          onInteractOutside={(e) => {
+            if (pickingFileRef.current) e.preventDefault();
+          }}
+          onFocusOutside={(e) => {
+            if (pickingFileRef.current) e.preventDefault();
+          }}
+        >
           <DialogHeader>
             <DialogTitle className="font-display text-2xl tracking-wide uppercase">
               {editing ? "Editar movimiento" : "Registrar movimiento"}
@@ -393,7 +436,10 @@ function ContabilidadPage() {
               </Select>
             </Field>
             <Field label="Adjuntar PDF">
-              <label className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
+              <label
+                className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted"
+                onPointerDown={beginPickFile}
+              >
                 <span className="flex items-center gap-2">
                   <Paperclip className="size-4" /> Seleccionar PDF
                 </span>
@@ -407,14 +453,19 @@ function ContabilidadPage() {
                   onChange={(e) => {
                     const f = e.target.files?.[0] ?? null;
                     setPdfFile(f);
-                    if (f) setImgFile(null);
+                    if (f) pickImage(null);
+                    else pickingFileRef.current = false;
+                    e.target.value = "";
                   }}
                 />
               </label>
             </Field>
             <Field label="Adjuntar imagen o foto" full>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <label className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
+                <label
+                  className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted"
+                  onPointerDown={beginPickFile}
+                >
                   <span className="flex items-center gap-2">
                     <ImageIcon className="size-4" /> Galería
                   </span>
@@ -424,14 +475,15 @@ function ContabilidadPage() {
                     accept="image/*"
                     className="hidden"
                     onChange={(e) => {
-                      const f = e.target.files?.[0] ?? null;
-                      setImgFile(f);
-                      if (f) setPdfFile(null);
+                      pickImage(e.target.files?.[0] ?? null);
                       e.target.value = "";
                     }}
                   />
                 </label>
-                <label className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
+                <label
+                  className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted"
+                  onPointerDown={beginPickFile}
+                >
                   <span className="flex items-center gap-2">
                     <Camera className="size-4" /> Cámara
                   </span>
@@ -442,9 +494,7 @@ function ContabilidadPage() {
                     capture="environment"
                     className="hidden"
                     onChange={(e) => {
-                      const f = e.target.files?.[0] ?? null;
-                      setImgFile(f);
-                      if (f) setPdfFile(null);
+                      pickImage(e.target.files?.[0] ?? null);
                       e.target.value = "";
                     }}
                   />
@@ -453,6 +503,17 @@ function ContabilidadPage() {
               <p className="mt-1.5 truncate text-xs text-muted-foreground">
                 {imgFile?.name || "Ningún archivo seleccionado"}
               </p>
+              <div className="mt-2 flex min-h-[10rem] max-h-[40vh] items-center justify-center overflow-auto rounded-md border border-dashed border-border bg-muted/50 p-2">
+                {imgPreview ? (
+                  <img
+                    src={imgPreview}
+                    alt="Vista previa"
+                    className="max-h-[36vh] w-auto max-w-full object-contain"
+                  />
+                ) : (
+                  <span className="text-xs text-muted-foreground">Sin imagen seleccionada</span>
+                )}
+              </div>
             </Field>
             <Field label="Observación" full>
               <Textarea

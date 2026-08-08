@@ -99,6 +99,7 @@ function DocumentosPage() {
   const [touched, setTouched] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pickingFileRef = useRef(false);
   const [form, setForm] = useState({
     nombre: "",
     categoria: "Planos" as DocCategoria,
@@ -306,11 +307,27 @@ function DocumentosPage() {
       <Dialog
         open={open}
         onOpenChange={(v) => {
+          // En móvil, el selector de archivos puede disparar el cierre del diálogo.
+          if (!v && pickingFileRef.current) {
+            setOpen(true);
+            return;
+          }
           setOpen(v);
           if (!v) resetForm();
         }}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent
+          className="sm:max-w-lg"
+          onPointerDownOutside={(e) => {
+            if (pickingFileRef.current) e.preventDefault();
+          }}
+          onInteractOutside={(e) => {
+            if (pickingFileRef.current) e.preventDefault();
+          }}
+          onFocusOutside={(e) => {
+            if (pickingFileRef.current) e.preventDefault();
+          }}
+        >
           <DialogHeader>
             <DialogTitle className="font-display text-2xl tracking-wide uppercase">
               {editing ? "Editar Documento" : "Subir Documento"}
@@ -371,6 +388,7 @@ function DocumentosPage() {
                   className="sr-only"
                   onChange={(e) => {
                     const f = e.target.files?.[0] ?? null;
+                    setOpen(true);
                     setFile(f);
                     if (f && !form.nombre.trim()) {
                       setForm((prev) => ({
@@ -378,6 +396,9 @@ function DocumentosPage() {
                         nombre: f.name.replace(/\.[^.]+$/, ""),
                       }));
                     }
+                    window.setTimeout(() => {
+                      pickingFileRef.current = false;
+                    }, 800);
                   }}
                 />
                 <div className="flex flex-wrap items-center gap-3">
@@ -385,6 +406,9 @@ function DocumentosPage() {
                     type="button"
                     variant="outline"
                     className="gap-2"
+                    onPointerDown={() => {
+                      pickingFileRef.current = true;
+                    }}
                     onClick={() => fileInputRef.current?.click()}
                   >
                     <Paperclip className="size-4" />

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, MapPin, Camera as CameraIcon, User, ImageIcon } from "lucide-react";
@@ -80,7 +80,7 @@ function FotoImg({ path, alt }: { path: string; alt: string }) {
       </div>
     );
   }
-  return <img src={src} alt={alt} className="h-full w-full object-cover" loading="lazy" />;
+  return <img src={src} alt={alt} className="h-full w-full object-contain" loading="lazy" />;
 }
 
 function FotografiasPage() {
@@ -99,6 +99,7 @@ function FotografiasPage() {
   const [preview, setPreview] = useState("");
   const [compressedFile, setCompressedFile] = useState<File | null>(null);
   const [sizeInfo, setSizeInfo] = useState("");
+  const pickingFileRef = useRef(false);
   const [form, setForm] = useState({
     proyectoId: "",
     fecha: "",
@@ -125,19 +126,39 @@ function FotografiasPage() {
   if (!editing && !compressedFile) errores["imagen"] = "Seleccione una imagen.";
 
   const onPickFile = async (file: File | undefined) => {
-    if (!file) return;
+    if (!file) {
+      pickingFileRef.current = false;
+      return;
+    }
+    pickingFileRef.current = true;
+    setOpen(true);
     try {
       if (preview.startsWith("blob:")) URL.revokeObjectURL(preview);
       const result = await compressImage(file);
       setCompressedFile(result.file);
       setPreview(result.previewUrl);
-      setSizeInfo(
-        `${formatBytes(result.originalBytes)} → ${formatBytes(result.compressedBytes)} (comprimida)`,
-      );
+      if (result.savedRatio > 0.01) {
+        const pct = Math.round(result.savedRatio * 100);
+        setSizeInfo(
+          `${formatBytes(result.originalBytes)} → ${formatBytes(result.compressedBytes)} (−${pct}%)`,
+        );
+      } else {
+        setSizeInfo(
+          `${formatBytes(result.originalBytes)} (ya era liviana; se mantiene el original)`,
+        );
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "No se pudo comprimir";
       toast.error(msg);
+    } finally {
+      window.setTimeout(() => {
+        pickingFileRef.current = false;
+      }, 800);
     }
+  };
+
+  const beginPickFile = () => {
+    pickingFileRef.current = true;
   };
 
   const resetForm = () => {
@@ -231,7 +252,7 @@ function FotografiasPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {fotografias.map((f) => (
           <figure key={f.id} className="panel overflow-hidden">
-            <div className="relative aspect-video bg-muted">
+            <div className="relative flex aspect-video items-center justify-center bg-muted">
               <FotoImg path={f.imagen} alt={f.descripcion} />
               <Badge variant="outline" className="absolute top-3 left-3 bg-card">
                 {projects.find((p) => p.id === f.proyectoId)?.codigo ?? "—"}
@@ -286,11 +307,27 @@ function FotografiasPage() {
       <Dialog
         open={open}
         onOpenChange={(v) => {
+          // En móvil, abrir la cámara dispara dismiss del diálogo; no resetear ni cerrar.
+          if (!v && pickingFileRef.current) {
+            setOpen(true);
+            return;
+          }
           setOpen(v);
           if (!v) resetForm();
         }}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent
+          className="max-h-[90vh] overflow-y-auto sm:max-w-lg"
+          onPointerDownOutside={(e) => {
+            if (pickingFileRef.current) e.preventDefault();
+          }}
+          onInteractOutside={(e) => {
+            if (pickingFileRef.current) e.preventDefault();
+          }}
+          onFocusOutside={(e) => {
+            if (pickingFileRef.current) e.preventDefault();
+          }}
+        >
           <DialogHeader>
             <DialogTitle className="font-display text-2xl tracking-wide uppercase">
               {editing ? "Editar Fotografía" : "Nueva Fotografía"}
@@ -343,7 +380,10 @@ function FotografiasPage() {
               <>
                 <Field label="Imagen o foto" full error={touched ? errores["imagen"] : undefined}>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <label className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
+                    <label
+                      className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted"
+                      onPointerDown={beginPickFile}
+                    >
                       <span className="flex items-center gap-2">
                         <ImageIcon className="size-4" /> Galería
                       </span>
@@ -358,7 +398,10 @@ function FotografiasPage() {
                         }}
                       />
                     </label>
-                    <label className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
+                    <label
+                      className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted"
+                      onPointerDown={beginPickFile}
+                    >
                       <span className="flex items-center gap-2">
                         <CameraIcon className="size-4" /> Cámara
                       </span>
@@ -384,9 +427,13 @@ function FotografiasPage() {
                 </Field>
                 <div className="sm:col-span-2">
                   <p className="label-kicker">Vista previa</p>
-                  <div className="mt-2 grid aspect-video place-items-center overflow-hidden rounded-md border border-dashed border-border bg-muted/50">
+                  <div className="mt-2 flex min-h-[12rem] max-h-[50vh] items-center justify-center overflow-auto rounded-md border border-dashed border-border bg-muted/50 p-2">
                     {preview ? (
-                      <img src={preview} alt="Vista previa" className="h-full w-full object-cover" />
+                      <img
+                        src={preview}
+                        alt="Vista previa"
+                        className="max-h-[46vh] w-auto max-w-full object-contain"
+                      />
                     ) : (
                       <span className="text-xs text-muted-foreground">Sin imagen seleccionada</span>
                     )}

@@ -545,10 +545,13 @@ export function useAddFotografia() {
       file: File;
     }) => {
       if (!profile?.empresa_id) throw new Error("Sin empresa asignada");
-      const path = `${profile.empresa_id}/${f.proyectoId}/${crypto.randomUUID()}.jpg`;
+      const mime = f.file.type || "image/jpeg";
+      const ext =
+        mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
+      const path = `${profile.empresa_id}/${f.proyectoId}/${crypto.randomUUID()}.${ext}`;
       const { error: upErr } = await supabase.storage.from("fotografias").upload(path, f.file, {
         upsert: false,
-        contentType: "image/jpeg",
+        contentType: mime,
       });
       throwIf(upErr);
       const { error } = await supabase.from("fotografias").insert({

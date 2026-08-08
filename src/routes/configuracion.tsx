@@ -222,77 +222,82 @@ function ConfiguracionPage() {
 
         <Bloque icon={Palette} titulo="Logo y colores">
           <Field label="Logo institucional" full>
-            <div className="flex flex-wrap items-start gap-3">
-              {logoPreview ? (
-                <img
-                  src={logoPreview}
-                  alt="Logo institucional"
-                  className="size-14 rounded-md border border-border object-contain bg-muted/40"
-                />
-              ) : null}
-              <div className="min-w-0 flex-1 space-y-2">
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <label className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
-                    <span className="flex items-center gap-2">
-                      <ImageIcon className="size-4" /> Galería
-                    </span>
-                    <span className="text-xs">Seleccionar imagen</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] ?? null;
-                        setLogoFile(file);
-                        setLogoNombre(file?.name ?? "");
-                        setClearLogo(false);
-                        e.target.value = "";
-                      }}
-                    />
-                  </label>
-                  <label className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
-                    <span className="flex items-center gap-2">
-                      <Camera className="size-4" /> Cámara
-                    </span>
-                    <span className="text-xs">Tomar foto</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] ?? null;
-                        setLogoFile(file);
-                        setLogoNombre(file?.name ?? "");
-                        setClearLogo(false);
-                        e.target.value = "";
-                      }}
-                    />
-                  </label>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {(logoPreview || config?.logo_path) && !clearLogo ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="h-8 px-2 text-destructive"
-                      onClick={() => {
-                        setLogoFile(null);
-                        setLogoNombre("");
-                        setClearLogo(true);
-                      }}
-                    >
-                      Quitar logo
-                    </Button>
-                  ) : null}
-                  <span className="text-sm text-muted-foreground">
-                    {logoNombre ||
-                      (clearLogo
-                        ? "Se quitará al guardar"
-                        : config?.logo_path
-                          ? "Logo guardado"
-                          : "Ningún archivo seleccionado")}
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <label className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
+                  <span className="flex items-center gap-2">
+                    <ImageIcon className="size-4" /> Galería
                   </span>
+                  <span className="text-xs">Seleccionar imagen</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      setLogoFile(file);
+                      setLogoNombre(file?.name ?? "");
+                      setClearLogo(false);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+                <label className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
+                  <span className="flex items-center gap-2">
+                    <Camera className="size-4" /> Cámara
+                  </span>
+                  <span className="text-xs">Tomar foto</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      setLogoFile(file);
+                      setLogoNombre(file?.name ?? "");
+                      setClearLogo(false);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {(logoPreview || config?.logo_path) && !clearLogo ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-8 px-2 text-destructive"
+                    onClick={() => {
+                      setLogoFile(null);
+                      setLogoNombre("");
+                      setClearLogo(true);
+                    }}
+                  >
+                    Quitar logo
+                  </Button>
+                ) : null}
+                <span className="text-sm text-muted-foreground">
+                  {logoNombre ||
+                    (clearLogo
+                      ? "Se quitará al guardar"
+                      : config?.logo_path
+                        ? "Logo guardado"
+                        : "Ningún archivo seleccionado")}
+                </span>
+              </div>
+              <div>
+                <p className="label-kicker">Vista previa</p>
+                <div className="mt-2 flex min-h-[8rem] max-h-[40vh] items-center justify-center overflow-auto rounded-md border border-dashed border-border bg-muted/50 p-2">
+                  {logoPreview && !clearLogo ? (
+                    <img
+                      src={logoPreview}
+                      alt="Vista previa del logo"
+                      className="max-h-[36vh] w-auto max-w-full object-contain"
+                    />
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Sin imagen seleccionada</span>
+                  )}
                 </div>
               </div>
             </div>
