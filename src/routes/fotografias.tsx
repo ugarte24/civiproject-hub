@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Plus, Trash2, MapPin, Camera as CameraIcon, User } from "lucide-react";
 import {
@@ -24,9 +24,21 @@ import {
 import { PageHeader, AccesoDenegado } from "@/components/AppShell";
 import { Field } from "@/components/Field";
 import { DateInput } from "@/components/DateInput";
-import { useStore, usePermisos, fecha } from "@/lib/store";
+import { usePermisos, fecha } from "@/lib/store";
+import { useAuth } from "@/lib/auth";
+import { compressImage, formatBytes } from "@/lib/compress-image";
+import {
+  signedUrl,
+  useAddFotografia,
+  useDeleteFotografia,
+  useFotografias,
+  useProyectos,
+} from "@/lib/obra/hooks";
 
 export const Route = createFileRoute("/fotografias")({
+  validateSearch: (s: Record<string, unknown>) => ({
+    proyecto: typeof s["proyecto"] === "string" ? s["proyecto"] : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Fotografías de avance de obra — SIGOC" },
@@ -35,48 +47,123 @@ export const Route = createFileRoute("/fotografias")({
         content:
           "Galería fotográfica del avance de obra con fecha, ubicación, autor y descripción por proyecto.",
       },
-      { property: "og:title", content: "Fotografías — SIGOC" },
-      {
-        property: "og:description",
-        content: "Registro visual del avance físico de cada proyecto civil.",
-      },
     ],
   }),
   component: FotografiasPage,
 });
 
+function FotoImg({ path, alt }: { path: string; alt: string }) {
+  const [src, setSrc] = useState<string>("");
+  useEffect(() => {
+    let alive = true;
+    if (!path || path.startsWith("data:") || path.startsWith("blob:")) {
+      setSrc(path);
+      return;
+    }
+    void signedUrl("fotografias", path)
+      .then((url) => {
+        if (alive) setSrc(url);
+      })
+      .catch(() => {
+        if (alive) setSrc("");
+      });
+    return () => {
+      alive = false;
+    };
+  }, [path]);
+  if (!src) {
+    return (
+      <div className="brand-surface flex h-full w-full flex-col items-center justify-center gap-2 opacity-90">
+        <CameraIcon className="size-7" />
+        <span className="text-xs">Avance de obra</span>
+      </div>
+    );
+  }
+  return <img src={src} alt={alt} className="h-full w-full object-cover" loading="lazy" />;
+}
+
 function FotografiasPage() {
-  const { fotografias, projects, addFotografia, removeFotografia, role } = useStore();
-  const { puedeVer, puedeEditar } = usePermisos();
+  const search = useSearch({ from: "/fotografias" });
+  const { profile } = useAuth();
+  const { data: projects = [], isLoading: loadingProj } = useProyectos();
+  const { data: fotografias = [], isLoading } = useFotografias();
+  const addFoto = useAddFotografia();
+  const delFoto = useDeleteFotografia();
+  const { puedeVer, puedeEditar, role } = usePermisos();
   const editable = puedeEditar("fotografias");
   const [open, setOpen] = useState(false);
   const [touched, setTouched] = useState(false);
   const [preview, setPreview] = useState("");
+  const [compressedFile, setCompressedFile] = useState<File | null>(null);
+  const [sizeInfo, setSizeInfo] = useState("");
   const [form, setForm] = useState({
-    proyectoId: projects[0]?.id ?? "",
+    proyectoId: "",
     fecha: "",
     descripcion: "",
     ubicacion: "",
-    autor: role,
-    imagen: "",
+    autor: "",
   });
 
+  useEffect(() => {
+    const pref = search.proyecto && projects.some((p) => p.id === search.proyecto)
+      ? search.proyecto
+      : projects[0]?.id ?? "";
+    setForm((f) => ({
+      ...f,
+      proyectoId: f.proyectoId || pref,
+      autor: f.autor || profile?.nombre || role,
+    }));
+  }, [projects, search.proyecto, profile?.nombre, role]);
+
   const errores: Record<string, string> = {};
+  if (!form.proyectoId) errores["proyectoId"] = "Seleccione un proyecto.";
   if (!form.fecha) errores["fecha"] = "Fecha requerida.";
   if (form.descripcion.trim().length < 5) errores["descripcion"] = "Mínimo 5 caracteres.";
+  if (!compressedFile) errores["imagen"] = "Seleccione una imagen.";
 
-  const guardar = () => {
+  const onPickFile = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      if (preview.startsWith("blob:")) URL.revokeObjectURL(preview);
+      const result = await compressImage(file);
+      setCompressedFile(result.file);
+      setPreview(result.previewUrl);
+      setSizeInfo(
+        `${formatBytes(result.originalBytes)} → ${formatBytes(result.compressedBytes)} (comprimida)`,
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "No se pudo comprimir";
+      toast.error(msg);
+    }
+  };
+
+  const guardar = async () => {
     if (Object.keys(errores).length) {
       setTouched(true);
-      toast.error("❌ Error al guardar los datos. Revise los campos marcados.");
+      toast.error("Revise los campos marcados.");
       return;
     }
-    addFotografia({ ...form, imagen: preview });
-    toast.success("📷 Fotografía subida correctamente.");
-    setOpen(false);
-    setTouched(false);
-    setPreview("");
-    setForm((f) => ({ ...f, fecha: "", descripcion: "", ubicacion: "", imagen: "" }));
+    try {
+      await addFoto.mutateAsync({
+        proyectoId: form.proyectoId,
+        fecha: form.fecha,
+        descripcion: form.descripcion.trim(),
+        ubicacion: form.ubicacion.trim(),
+        autor: form.autor || profile?.nombre || role,
+        file: compressedFile!,
+      });
+      toast.success("Fotografía subida correctamente.");
+      setOpen(false);
+      setTouched(false);
+      if (preview.startsWith("blob:")) URL.revokeObjectURL(preview);
+      setPreview("");
+      setCompressedFile(null);
+      setSizeInfo("");
+      setForm((f) => ({ ...f, fecha: "", descripcion: "", ubicacion: "" }));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "No se pudo guardar";
+      toast.error(msg);
+    }
   };
 
   if (!puedeVer("fotografias")) return <AccesoDenegado modulo="Fotografías" />;
@@ -86,33 +173,25 @@ function FotografiasPage() {
       <PageHeader
         kicker="Registro visual"
         title="Fotografías"
-        description="Evidencia fotográfica del avance físico, georreferenciada por ubicación y autor."
+        description="Evidencia fotográfica del avance físico (imágenes comprimidas automáticamente)."
         action={
           editable ? (
-            <Button onClick={() => setOpen(true)} className="gap-2">
+            <Button onClick={() => setOpen(true)} className="gap-2" disabled={!projects.length}>
               <Plus className="size-4" /> Nueva Fotografía
             </Button>
           ) : null
         }
       />
 
+      {isLoading || loadingProj ? (
+        <p className="text-sm text-muted-foreground">Cargando fotografías…</p>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {fotografias.map((f) => (
           <figure key={f.id} className="panel overflow-hidden">
             <div className="relative aspect-video bg-muted">
-              {f.imagen ? (
-                <img
-                  src={f.imagen}
-                  alt={f.descripcion}
-                  className="h-full w-full object-cover"
-                  loading="lazy"
-                />
-              ) : (
-                <div className="brand-surface flex h-full w-full flex-col items-center justify-center gap-2 opacity-90">
-                  <CameraIcon className="size-7" />
-                  <span className="text-xs">Avance de obra</span>
-                </div>
-              )}
+              <FotoImg path={f.imagen} alt={f.descripcion} />
               <Badge variant="outline" className="absolute top-3 left-3 bg-card">
                 {projects.find((p) => p.id === f.proyectoId)?.codigo ?? "—"}
               </Badge>
@@ -134,8 +213,10 @@ function FotografiasPage() {
                   size="sm"
                   className="mt-2 gap-2 px-0 text-destructive hover:bg-transparent"
                   onClick={() => {
-                    removeFotografia(f.id);
-                    toast.success("🗑️ Fotografía eliminada correctamente.");
+                    void delFoto.mutateAsync(f).then(
+                      () => toast.success("Fotografía eliminada."),
+                      (err: Error) => toast.error(err.message),
+                    );
                   }}
                 >
                   <Trash2 className="size-4" /> Eliminar
@@ -144,6 +225,11 @@ function FotografiasPage() {
             </figcaption>
           </figure>
         ))}
+        {!isLoading && !fotografias.length ? (
+          <p className="text-sm text-muted-foreground sm:col-span-2 xl:col-span-3">
+            Aún no hay fotografías. Suba la primera evidencia de avance.
+          </p>
+        ) : null}
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -152,16 +238,18 @@ function FotografiasPage() {
             <DialogTitle className="font-display text-2xl tracking-wide uppercase">
               Nueva Fotografía
             </DialogTitle>
-            <DialogDescription>Adjunte la imagen del avance y su descripción.</DialogDescription>
+            <DialogDescription>
+              La imagen se comprime automáticamente antes de guardarla.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Proyecto" full>
+            <Field label="Proyecto" full error={touched ? errores["proyectoId"] : undefined}>
               <Select
                 value={form.proyectoId}
                 onValueChange={(v) => setForm((f) => ({ ...f, proyectoId: v }))}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Seleccione" />
                 </SelectTrigger>
                 <SelectContent>
                   {projects.map((p) => (
@@ -192,15 +280,15 @@ function FotografiasPage() {
                 onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
               />
             </Field>
-            <Field label="Seleccionar imagen" full>
+            <Field label="Seleccionar imagen" full error={touched ? errores["imagen"] : undefined}>
               <Input
                 type="file"
                 accept="image/*"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) setPreview(URL.createObjectURL(file));
-                }}
+                onChange={(e) => void onPickFile(e.target.files?.[0])}
               />
+              {sizeInfo ? (
+                <p className="mt-1 text-xs text-muted-foreground">{sizeInfo}</p>
+              ) : null}
             </Field>
             <div className="sm:col-span-2">
               <p className="label-kicker">Vista previa</p>
@@ -217,7 +305,9 @@ function FotografiasPage() {
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={guardar}>Guardar</Button>
+            <Button onClick={() => void guardar()} disabled={addFoto.isPending}>
+              {addFoto.isPending ? "Subiendo…" : "Guardar"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

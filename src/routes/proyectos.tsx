@@ -47,13 +47,17 @@ import { Field } from "@/components/Field";
 import { DateInput } from "@/components/DateInput";
 import { cn } from "@/lib/utils";
 import {
-  useStore,
   usePermisos,
   money,
   fecha,
   type Project,
   type ProjectStatus,
 } from "@/lib/store";
+import {
+  useDeleteProyecto,
+  useProyectos,
+  useUpsertProyecto,
+} from "@/lib/obra/hooks";
 
 export const Route = createFileRoute("/proyectos")({
   head: () => ({
@@ -108,7 +112,9 @@ const emptyForm: FormState = {
 };
 
 function ProyectosPage() {
-  const { projects, addProject, updateProject, removeProject } = useStore();
+  const { data: projects = [], isLoading } = useProyectos();
+  const upsert = useUpsertProyecto();
+  const remove = useDeleteProyecto();
   const { puedeVer, puedeEditar } = usePermisos();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
@@ -175,18 +181,27 @@ function ProyectosPage() {
       setTouched(
         Object.fromEntries(Object.keys(form).map((k) => [k, true])) as Record<string, boolean>,
       );
-      toast.error("❌ Error al guardar los datos. Revise los campos marcados.");
+      toast.error("Error al guardar. Revise los campos marcados.");
       return;
     }
-    const payload = { ...form, presupuesto: Number(form.presupuesto) };
-    if (editing) {
-      updateProject(editing.id, payload);
-      toast.success("✏️ Proyecto actualizado correctamente.");
-    } else {
-      addProject(payload);
-      toast.success("✅ Proyecto registrado correctamente.");
-    }
-    setOpen(false);
+    const payload = {
+      codigo: form.codigo.trim(),
+      nombre: form.nombre.trim(),
+      entidad: form.entidad.trim(),
+      empresa: form.empresa.trim(),
+      responsable: form.responsable.trim(),
+      presupuesto: Number(form.presupuesto),
+      fechaInicio: form.fechaInicio,
+      fechaFinal: form.fechaFinal,
+      estado: form.estado,
+    };
+    void upsert
+      .mutateAsync(editing ? { id: editing.id, ...payload } : payload)
+      .then(() => {
+        toast.success(editing ? "Proyecto actualizado." : "Proyecto registrado.");
+        setOpen(false);
+      })
+      .catch((err: Error) => toast.error(err.message));
   };
 
   const err = (k: keyof FormState) => (touched[k] ? errores[k] : undefined);
@@ -274,10 +289,10 @@ function ProyectosPage() {
                 <IconBtn label="Ver" onClick={() => setDetalle(p)}>
                   <Eye className="size-4" />
                 </IconBtn>
-                <IconBtn label="Documentos" to="/documentos">
+                <IconBtn label="Documentos" to={`/documentos?proyecto=${p.id}`}>
                   <FileText className="size-4" />
                 </IconBtn>
-                <IconBtn label="Fotografías" to="/fotografias">
+                <IconBtn label="Fotografías" to={`/fotografias?proyecto=${p.id}`}>
                   <Camera className="size-4" />
                 </IconBtn>
                 {editable ? (
@@ -339,10 +354,10 @@ function ProyectosPage() {
                       <IconBtn label="Ver" onClick={() => setDetalle(p)}>
                         <Eye className="size-4" />
                       </IconBtn>
-                      <IconBtn label="Documentos" to="/documentos">
+                      <IconBtn label="Documentos" to={`/documentos?proyecto=${p.id}`}>
                         <FileText className="size-4" />
                       </IconBtn>
-                      <IconBtn label="Fotografías" to="/fotografias">
+                      <IconBtn label="Fotografías" to={`/fotografias?proyecto=${p.id}`}>
                         <Camera className="size-4" />
                       </IconBtn>
                       {editable ? (
@@ -515,7 +530,15 @@ function ProyectosPage() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (borrar) removeProject(borrar.id);
+                if (borrar) {
+                  void remove.mutateAsync(borrar.id).then(
+                    () => {
+                      toast.success("Proyecto eliminado.");
+                      setBorrar(null);
+                    },
+                    (err: Error) => toast.error(err.message),
+                  );
+                }
                 toast.success("🗑️ Proyecto eliminado correctamente.");
                 setBorrar(null);
               }}

@@ -23,7 +23,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeader, AccesoDenegado } from "@/components/AppShell";
 import { Field } from "@/components/Field";
-import { useStore, usePermisos, apuPrecioUnitario, money2, type ApuInsumo } from "@/lib/store";
+import { usePermisos, apuPrecioUnitario, money2, type ApuInsumo } from "@/lib/store";
+import { useAddApu, useApus, useDeleteApu } from "@/lib/obra/hooks";
 
 export const Route = createFileRoute("/apu")({
   head: () => ({
@@ -112,7 +113,9 @@ function TablaInsumos({
 }
 
 function ApuPage() {
-  const { apus, addApu, removeApu } = useStore();
+  const { data: apus = [] } = useApus();
+  const addMut = useAddApu();
+  const delMut = useDeleteApu();
   const { puedeVer, puedeEditar } = usePermisos();
   const editable = puedeEditar("apu");
   const [open, setOpen] = useState(false);
@@ -150,13 +153,17 @@ function ApuPage() {
       return;
     }
     const { id: _id, ...rest } = borrador;
-    addApu(rest);
-    toast.success("✅ APU registrado correctamente.");
-    setOpen(false);
-    setGeneral({ codigo: "", descripcion: "", unidad: "", cantidad: "1", indirectos: "12", utilidad: "10" });
-    setMateriales([{ ...filaVacia }]);
-    setEquipos([{ ...filaVacia }]);
-    setManoObra([{ ...filaVacia }]);
+    void addMut
+      .mutateAsync(rest)
+      .then(() => {
+        toast.success("✅ APU registrado correctamente.");
+        setOpen(false);
+        setGeneral({ codigo: "", descripcion: "", unidad: "", cantidad: "1", indirectos: "12", utilidad: "10" });
+        setMateriales([{ ...filaVacia }]);
+        setEquipos([{ ...filaVacia }]);
+        setManoObra([{ ...filaVacia }]);
+      })
+      .catch((err: Error) => toast.error(err.message));
   };
 
   return (
@@ -192,9 +199,12 @@ function ApuPage() {
                     variant="ghost"
                     size="icon"
                     className="text-destructive"
+                    disabled={delMut.isPending}
                     onClick={() => {
-                      removeApu(a.id);
-                      toast.success("🗑️ APU eliminado correctamente.");
+                      void delMut
+                        .mutateAsync(a.id)
+                        .then(() => toast.success("🗑️ APU eliminado correctamente."))
+                        .catch((err: Error) => toast.error(err.message));
                     }}
                   >
                     <Trash2 className="size-4" />
@@ -326,7 +336,9 @@ function ApuPage() {
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={guardar}>Guardar APU</Button>
+            <Button onClick={guardar} disabled={addMut.isPending}>
+              Guardar APU
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -23,7 +23,8 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader, AccesoDenegado } from "@/components/AppShell";
 import { Field } from "@/components/Field";
 import { DateInput } from "@/components/DateInput";
-import { useStore, usePermisos, money, fecha } from "@/lib/store";
+import { usePermisos, money, fecha } from "@/lib/store";
+import { useProyectos } from "@/lib/obra/hooks";
 
 export const Route = createFileRoute("/reportes")({
   head: () => ({
@@ -45,7 +46,7 @@ export const Route = createFileRoute("/reportes")({
 });
 
 function ReportesPage() {
-  const { projects } = useStore();
+  const { data: projects = [] } = useProyectos();
   const { puedeVer } = usePermisos();
   const [proyecto, setProyecto] = useState("todos");
   const [estado, setEstado] = useState("todos");

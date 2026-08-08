@@ -25,7 +25,13 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { PageHeader } from "@/components/AppShell";
-import { money, useStore, fecha } from "@/lib/store";
+import { money, usePermisos, fecha } from "@/lib/store";
+import {
+  useActividades,
+  useFotografias,
+  useMovimientos,
+  useProyectos,
+} from "@/lib/obra/hooks";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -80,7 +86,19 @@ function StatCard({
 }
 
 function Dashboard() {
-  const { projects, movimientos, actividades, fotografias } = useStore();
+  const { puedeVer } = usePermisos();
+  const { data: proyectos = [] } = useProyectos();
+  const { data: movimientos = [] } = useMovimientos({
+    enabled: puedeVer("contabilidad"),
+  });
+  const { data: actividades = [] } = useActividades({
+    enabled: puedeVer("cronograma"),
+  });
+  const { data: fotografias = [] } = useFotografias({
+    enabled: puedeVer("fotografias"),
+  });
+
+  const projects = proyectos;
 
   const presupuesto = projects.reduce((a, p) => a + p.presupuesto, 0);
   const ejecutado = projects.reduce((a, p) => a + p.ejecutado, 0);

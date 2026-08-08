@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Plus, Trash2, FileText, FileSpreadsheet, FileArchive, PenTool, File } from "lucide-react";
 import {
@@ -23,9 +23,19 @@ import {
 } from "@/components/ui/select";
 import { PageHeader, AccesoDenegado } from "@/components/AppShell";
 import { Field } from "@/components/Field";
-import { useStore, usePermisos, fecha, type DocCategoria } from "@/lib/store";
+import { usePermisos, fecha, type DocCategoria } from "@/lib/store";
+import {
+  signedUrl,
+  useAddDocumento,
+  useDeleteDocumento,
+  useDocumentos,
+  useProyectos,
+} from "@/lib/obra/hooks";
 
 export const Route = createFileRoute("/documentos")({
+  validateSearch: (s: Record<string, unknown>) => ({
+    proyecto: typeof s["proyecto"] === "string" ? s["proyecto"] : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Documentos técnicos — SIGOC" },
@@ -59,30 +69,47 @@ const iconoPorArchivo = (nombre: string) => {
   if (ext === "dwg") return PenTool;
   if (ext === "xlsx" || ext === "xls") return FileSpreadsheet;
   if (ext === "zip") return FileArchive;
-  if (ext === "pdf" || ext === "docx") return FileText;
+  if (ext === "pdf" || ext === "docx" || ext === "doc") return FileText;
   return File;
 };
 
 function DocumentosPage() {
-  const { documentos, projects, addDocumento, removeDocumento } = useStore();
+  const search = useSearch({ from: "/documentos" });
+  const { data: projects = [] } = useProyectos();
+  const { data: documentos = [] } = useDocumentos();
+  const addMut = useAddDocumento();
+  const delMut = useDeleteDocumento();
   const { puedeVer, puedeEditar } = usePermisos();
   const editable = puedeEditar("documentos");
   const [cat, setCat] = useState<string>("todas");
   const [open, setOpen] = useState(false);
   const [touched, setTouched] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
   const [form, setForm] = useState({
     nombre: "",
     categoria: "Planos" as DocCategoria,
-    proyectoId: projects[0]?.id ?? "",
-    archivo: "",
+    proyectoId: "",
     descripcion: "",
   });
 
+  useEffect(() => {
+    const pref =
+      search.proyecto && projects.some((p) => p.id === search.proyecto)
+        ? search.proyecto
+        : projects[0]?.id ?? "";
+    setForm((f) => ({ ...f, proyectoId: f.proyectoId || pref }));
+  }, [projects, search.proyecto]);
+
   const errores: Record<string, string> = {};
   if (form.nombre.trim().length < 4) errores["nombre"] = "Mínimo 4 caracteres.";
-  if (!form.archivo) errores["archivo"] = "Seleccione un archivo (PDF, Word, Excel, DWG o ZIP).";
+  if (!form.proyectoId) errores["proyectoId"] = "Seleccione un proyecto.";
+  if (!file) errores["archivo"] = "Seleccione un archivo (PDF, Word, Excel, DWG o ZIP).";
 
-  const lista = documentos.filter((d) => cat === "todas" || d.categoria === cat);
+  const lista = documentos.filter(
+    (d) =>
+      (cat === "todas" || d.categoria === cat) &&
+      (!search.proyecto || d.proyectoId === search.proyecto),
+  );
 
   const guardar = () => {
     if (Object.keys(errores).length) {
@@ -90,11 +117,28 @@ function DocumentosPage() {
       toast.error("❌ Error al guardar los datos. Revise los campos marcados.");
       return;
     }
-    addDocumento(form);
-    toast.success("📄 Documento cargado correctamente.");
-    setOpen(false);
-    setTouched(false);
-    setForm((f) => ({ ...f, nombre: "", archivo: "", descripcion: "" }));
+    void addMut
+      .mutateAsync({
+        nombre: form.nombre.trim(),
+        categoria: form.categoria,
+        proyectoId: form.proyectoId,
+        descripcion: form.descripcion.trim(),
+        file: file!,
+      })
+      .then(() => {
+        toast.success("📄 Documento cargado correctamente.");
+        setOpen(false);
+        setTouched(false);
+        setFile(null);
+        setForm((f) => ({ ...f, nombre: "", descripcion: "" }));
+      })
+      .catch((err: Error) => toast.error(err.message));
+  };
+
+  const abrirDocumento = (path: string) => {
+    void signedUrl("documentos", path)
+      .then((url) => window.open(url, "_blank", "noopener,noreferrer"))
+      .catch((err: Error) => toast.error(err.message));
   };
 
   if (!puedeVer("documentos")) return <AccesoDenegado modulo="Documentos" />;
@@ -107,7 +151,7 @@ function DocumentosPage() {
         description="Formatos admitidos: PDF, Word, Excel, DWG y ZIP, clasificados por categoría y proyecto."
         action={
           editable ? (
-            <Button onClick={() => setOpen(true)} className="gap-2">
+            <Button onClick={() => setOpen(true)} className="gap-2" disabled={!projects.length}>
               <Plus className="size-4" /> Subir Documento
             </Button>
           ) : null
@@ -136,19 +180,31 @@ function DocumentosPage() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {lista.map((d) => {
-          const Icono = iconoPorArchivo(d.archivo);
+          const fileName = d.archivo.split("/").pop() || d.nombre;
+          const Icono = iconoPorArchivo(fileName);
           return (
             <article key={d.id} className="panel flex gap-4 p-5">
-              <div className="grid size-11 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
+              <button
+                type="button"
+                className="grid size-11 shrink-0 place-items-center rounded-md bg-primary/10 text-primary transition-colors hover:bg-primary/20"
+                title="Abrir documento"
+                onClick={() => abrirDocumento(d.archivo)}
+              >
                 <Icono className="size-5" />
-              </div>
+              </button>
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="truncate font-medium text-foreground">{d.nombre}</p>
+                  <button
+                    type="button"
+                    className="truncate text-left font-medium text-foreground hover:underline"
+                    onClick={() => abrirDocumento(d.archivo)}
+                  >
+                    {d.nombre}
+                  </button>
                   <Badge variant="outline">{d.categoria}</Badge>
                 </div>
                 <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
-                  {d.archivo} · {d.peso}
+                  {fileName} · {d.peso}
                 </p>
                 <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{d.descripcion}</p>
                 <div className="mt-3 flex items-center justify-between">
@@ -160,9 +216,12 @@ function DocumentosPage() {
                       variant="ghost"
                       size="icon"
                       className="text-destructive"
+                      disabled={delMut.isPending}
                       onClick={() => {
-                        removeDocumento(d.id);
-                        toast.success("🗑️ Documento eliminado correctamente.");
+                        void delMut
+                          .mutateAsync({ id: d.id, archivo: d.archivo })
+                          .then(() => toast.success("🗑️ Documento eliminado correctamente."))
+                          .catch((err: Error) => toast.error(err.message));
                       }}
                     >
                       <Trash2 className="size-4" />
@@ -212,13 +271,13 @@ function DocumentosPage() {
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Proyecto">
+            <Field label="Proyecto" error={touched ? errores["proyectoId"] : undefined}>
               <Select
                 value={form.proyectoId}
                 onValueChange={(v) => setForm((f) => ({ ...f, proyectoId: v }))}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Seleccione" />
                 </SelectTrigger>
                 <SelectContent>
                   {projects.map((p) => (
@@ -233,9 +292,16 @@ function DocumentosPage() {
               <Input
                 type="file"
                 accept=".pdf,.doc,.docx,.xls,.xlsx,.dwg,.zip"
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, archivo: e.target.files?.[0]?.name ?? "" }))
-                }
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  setFile(f);
+                  if (f && !form.nombre.trim()) {
+                    setForm((prev) => ({
+                      ...prev,
+                      nombre: f.name.replace(/\.[^.]+$/, ""),
+                    }));
+                  }
+                }}
               />
             </Field>
             <Field label="Descripción" full>
@@ -250,7 +316,9 @@ function DocumentosPage() {
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={guardar}>Guardar</Button>
+            <Button onClick={guardar} disabled={addMut.isPending}>
+              Guardar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

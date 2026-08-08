@@ -12,10 +12,8 @@ import {
   BarChart3,
   Users,
   Settings,
-  HardHat,
   Menu,
   Search,
-  ShieldCheck,
   LogOut,
   Shield,
 } from "lucide-react";
@@ -33,6 +31,7 @@ import {
   SuperAdminProfileTrigger,
 } from "@/components/SuperAdminProfileButton";
 import { getAppFooterLabel } from "@/lib/app-version";
+import { SigocLogo } from "@/components/SigocLogo";
 
 const nav = [
   { key: "dashboard", to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -109,9 +108,7 @@ function Brand({ className }: { className?: string }) {
         className,
       )}
     >
-      <div className="accent-surface grid size-10 shrink-0 place-items-center rounded-md">
-        <HardHat className="size-5" />
-      </div>
+      <SigocLogo size={40} />
       <div className="min-w-0 leading-tight">
         <p className="font-display text-lg font-semibold tracking-wide text-sidebar-accent-foreground">
           SIGOC
@@ -223,9 +220,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Sheet>
 
           <div className="flex min-w-0 items-center gap-2 lg:hidden">
-            <div className="accent-surface grid size-8 shrink-0 place-items-center rounded-md">
-              <HardHat className="size-4" />
-            </div>
+            <SigocLogo size={32} />
             <div className="min-w-0">
               <p className="font-display text-base font-semibold leading-none tracking-wide">
                 SIGOC
@@ -335,9 +330,7 @@ export function AccesoDenegado({ modulo }: { modulo: string }) {
   const { isSuperAdmin } = useAuth();
   return (
     <div className="panel mx-auto max-w-lg p-6 text-center sm:p-10">
-      <div className="mx-auto grid size-12 place-items-center rounded-full bg-destructive/10 text-destructive">
-        <ShieldCheck className="size-6" />
-      </div>
+      <SigocLogo size={48} className="mx-auto" />
       <h2 className="mt-4 text-xl font-semibold">Acceso restringido</h2>
       <p className="mt-2 text-sm text-muted-foreground">
         El rol <strong>{isSuperAdmin ? "SuperAdmin" : role}</strong> no tiene permisos para el módulo{" "}

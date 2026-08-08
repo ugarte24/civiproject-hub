@@ -2,6 +2,7 @@ import { AlertTriangle, LogOut } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { SigocLogo } from "@/components/SigocLogo";
 import { useAuth } from "@/lib/auth";
 import { formatFechaBO, precioPlanLabel, precioRenovacionDefault } from "@/lib/subscription";
 import { supabase } from "@/lib/supabase";
@@ -23,8 +24,9 @@ export function PlanVencido() {
   return (
     <div className="flex min-h-dvh items-center justify-center bg-background px-4 py-8">
       <div className="panel w-full max-w-lg p-6 text-center sm:p-8">
-        <div className="mx-auto grid size-14 place-items-center rounded-full bg-destructive/10 text-destructive">
-          <AlertTriangle className="size-7" />
+        <SigocLogo size={56} className="mx-auto" />
+        <div className="mx-auto mt-4 grid size-12 place-items-center rounded-full bg-destructive/10 text-destructive">
+          <AlertTriangle className="size-6" />
         </div>
         <h1 className="mt-4 text-2xl font-semibold">Plan vencido</h1>
         <p className="mt-2 text-sm text-muted-foreground">

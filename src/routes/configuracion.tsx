@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Building2, Palette, DatabaseBackup, BellRing, SlidersHorizontal } from "lucide-react";
@@ -7,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { PageHeader, AccesoDenegado } from "@/components/AppShell";
 import { Field } from "@/components/Field";
 import { usePermisos } from "@/lib/store";
+import { useConfigEmpresa, useSaveConfigEmpresa } from "@/lib/obra/hooks";
 
 export const Route = createFileRoute("/configuracion")({
   head: () => ({
@@ -51,7 +53,35 @@ function Bloque({
 
 function ConfiguracionPage() {
   const { puedeVer } = usePermisos();
+  const { data: config, isLoading } = useConfigEmpresa();
+  const saveMut = useSaveConfigEmpresa();
+  const [empresa, setEmpresa] = useState({
+    nombre_empresa: "",
+    nit: "",
+    direccion: "",
+    telefono: "",
+    moneda: "Bolivianos (Bs)",
+  });
+
+  useEffect(() => {
+    if (!config) return;
+    setEmpresa({
+      nombre_empresa: config.nombre_empresa ?? "",
+      nit: config.nit ?? "",
+      direccion: config.direccion ?? "",
+      telefono: config.telefono ?? "",
+      moneda: config.moneda || "Bolivianos (Bs)",
+    });
+  }, [config]);
+
   if (!puedeVer("configuracion")) return <AccesoDenegado modulo="Configuración" />;
+
+  const guardar = () => {
+    void saveMut
+      .mutateAsync(empresa)
+      .then(() => toast.success("✅ Configuración guardada correctamente."))
+      .catch((err: Error) => toast.error(err.message));
+  };
 
   return (
     <div>
@@ -60,7 +90,7 @@ function ConfiguracionPage() {
         title="Configuración"
         description="Parámetros institucionales, identidad visual, respaldos y notificaciones del sistema."
         action={
-          <Button onClick={() => toast.success("✅ Configuración guardada correctamente.")}>
+          <Button onClick={guardar} disabled={saveMut.isPending || isLoading}>
             Guardar cambios
           </Button>
         }
@@ -69,13 +99,28 @@ function ConfiguracionPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Bloque icon={Building2} titulo="Empresa">
           <Field label="Razón social">
-            <Input defaultValue="Constructora Andina S.R.L." />
+            <Input
+              value={empresa.nombre_empresa}
+              onChange={(e) => setEmpresa((s) => ({ ...s, nombre_empresa: e.target.value }))}
+            />
           </Field>
           <Field label="NIT">
-            <Input defaultValue="3040506070" />
+            <Input
+              value={empresa.nit}
+              onChange={(e) => setEmpresa((s) => ({ ...s, nit: e.target.value }))}
+            />
           </Field>
           <Field label="Dirección">
-            <Input defaultValue="Av. Costanera N° 1250, La Paz" />
+            <Input
+              value={empresa.direccion}
+              onChange={(e) => setEmpresa((s) => ({ ...s, direccion: e.target.value }))}
+            />
+          </Field>
+          <Field label="Teléfono">
+            <Input
+              value={empresa.telefono}
+              onChange={(e) => setEmpresa((s) => ({ ...s, telefono: e.target.value }))}
+            />
           </Field>
         </Bloque>
 
@@ -121,7 +166,10 @@ function ConfiguracionPage() {
 
         <Bloque icon={SlidersHorizontal} titulo="Parámetros">
           <Field label="Moneda">
-            <Input defaultValue="Bolivianos (Bs)" />
+            <Input
+              value={empresa.moneda}
+              onChange={(e) => setEmpresa((s) => ({ ...s, moneda: e.target.value }))}
+            />
           </Field>
           <Field label="Costo indirecto por defecto (%)">
             <Input type="number" defaultValue={12} />

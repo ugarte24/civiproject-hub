@@ -1,11 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { HardHat } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LoadingScreen } from "@/components/SigocLogo";
+import { LoadingScreen, SigocBrand } from "@/components/SigocLogo";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 
@@ -59,15 +58,11 @@ function LoginPage() {
   return (
     <div className="flex min-h-dvh items-center justify-center bg-background px-4 py-8">
       <div className="panel w-full max-w-md p-6 sm:p-8">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="accent-surface grid size-11 place-items-center rounded-md">
-            <HardHat className="size-5" />
-          </div>
-          <div>
-            <p className="font-display text-2xl font-semibold tracking-wide">SIGOC</p>
-            <p className="text-xs text-muted-foreground">Inicie sesión para continuar</p>
-          </div>
-        </div>
+        <SigocBrand
+          className="mb-6"
+          logoSize={44}
+          subtitle="Inicie sesión para continuar"
+        />
 
         <form className="space-y-4" onSubmit={(e) => void onSubmit(e)}>
           <div className="space-y-2">

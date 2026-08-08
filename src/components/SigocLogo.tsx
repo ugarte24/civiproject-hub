@@ -1,23 +1,65 @@
+import { HardHat } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type SigocLogoProps = {
   className?: string;
+  /** Tamaño del contenedor en px (default 44 = login). */
   size?: number;
-  /** Con fondo amber (icono completo). Sin fondo solo el casco no aplica: siempre el asset. */
   title?: string;
 };
 
-/** Logo oficial SIGOC para pantalla de carga e iconos de app (/favicon.svg). */
-export function SigocLogo({ className, size = 40, title = "SIGOC" }: SigocLogoProps) {
+/**
+ * Marca SIGOC del sistema: casco sobre accent-surface.
+ * Usar en login, menú, carga y cualquier punto de marca.
+ */
+export function SigocLogo({ className, size = 44, title = "SIGOC" }: SigocLogoProps) {
+  const iconSize = Math.max(14, Math.round(size * 0.45));
   return (
-    <img
-      src="/favicon.svg"
-      alt={title}
-      width={size}
-      height={size}
-      className={cn("shrink-0 rounded-md", className)}
-      draggable={false}
-    />
+    <div
+      className={cn(
+        "accent-surface grid shrink-0 place-items-center rounded-md",
+        className,
+      )}
+      style={{ width: size, height: size }}
+      role="img"
+      aria-label={title}
+    >
+      <HardHat style={{ width: iconSize, height: iconSize }} className="shrink-0" aria-hidden />
+    </div>
+  );
+}
+
+type SigocBrandProps = {
+  className?: string;
+  logoSize?: number;
+  subtitle?: string;
+  titleClassName?: string;
+};
+
+/** Logo + texto SIGOC (cabeceras). */
+export function SigocBrand({
+  className,
+  logoSize = 44,
+  subtitle,
+  titleClassName,
+}: SigocBrandProps) {
+  return (
+    <div className={cn("flex items-center gap-3", className)}>
+      <SigocLogo size={logoSize} />
+      <div className="min-w-0 leading-tight">
+        <p
+          className={cn(
+            "font-display font-semibold tracking-wide text-foreground",
+            titleClassName ?? "text-2xl",
+          )}
+        >
+          SIGOC
+        </p>
+        {subtitle ? (
+          <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -25,7 +67,7 @@ type LoadingScreenProps = {
   message?: string;
 };
 
-/** Pantalla de carga con logo de marca. */
+/** Pantalla de carga con la marca del sistema. */
 export function LoadingScreen({ message = "Cargando…" }: LoadingScreenProps) {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-background px-4">

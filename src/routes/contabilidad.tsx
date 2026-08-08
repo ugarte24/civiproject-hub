@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Plus, Paperclip, ImageIcon, Trash2 } from "lucide-react";
@@ -32,7 +32,13 @@ import {
 import { PageHeader, AccesoDenegado } from "@/components/AppShell";
 import { Field } from "@/components/Field";
 import { DateInput } from "@/components/DateInput";
-import { useStore, usePermisos, money, fecha, type MovimientoTipo } from "@/lib/store";
+import { usePermisos, money, fecha, type MovimientoTipo } from "@/lib/store";
+import {
+  useAddMovimiento,
+  useDeleteMovimiento,
+  useMovimientos,
+  useProyectos,
+} from "@/lib/obra/hooks";
 
 export const Route = createFileRoute("/contabilidad")({
   head: () => ({
@@ -56,7 +62,10 @@ export const Route = createFileRoute("/contabilidad")({
 const tabs: MovimientoTipo[] = ["Ingreso", "Egreso", "Factura", "Pago", "Retencion", "Planilla"];
 
 function ContabilidadPage() {
-  const { projects, movimientos, addMovimiento, removeMovimiento } = useStore();
+  const { data: projects = [] } = useProyectos();
+  const { data: movimientos = [] } = useMovimientos();
+  const addMut = useAddMovimiento();
+  const delMut = useDeleteMovimiento();
   const { puedeVer, puedeEditar } = usePermisos();
   const editable = puedeEditar("contabilidad");
   const [open, setOpen] = useState(false);
@@ -68,9 +77,15 @@ function ContabilidadPage() {
     monto: "",
     fecha: "",
     observacion: "",
-    proyectoId: projects[0]?.id ?? "",
+    proyectoId: "",
     tipo: "Factura" as MovimientoTipo,
   });
+
+  useEffect(() => {
+    if (!form.proyectoId && projects[0]?.id) {
+      setForm((f) => ({ ...f, proyectoId: projects[0]!.id }));
+    }
+  }, [projects, form.proyectoId]);
 
   const errores: Record<string, string> = {};
   if (form.proveedor.trim().length < 3) errores["proveedor"] = "Mínimo 3 caracteres.";
@@ -78,6 +93,7 @@ function ContabilidadPage() {
   if (!form.numero.trim()) errores["numero"] = "Número requerido.";
   if (!form.monto || Number(form.monto) <= 0) errores["monto"] = "Monto mayor a cero.";
   if (!form.fecha) errores["fecha"] = "Fecha requerida.";
+  if (!form.proyectoId) errores["proyectoId"] = "Seleccione un proyecto.";
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -87,11 +103,32 @@ function ContabilidadPage() {
       toast.error("❌ Error al guardar los datos. Revise los campos marcados.");
       return;
     }
-    addMovimiento({ ...form, monto: Number(form.monto) });
-    toast.success("📄 Factura registrada correctamente.");
-    setOpen(false);
-    setTouched(false);
-    setForm((f) => ({ ...f, proveedor: "", nit: "", numero: "", monto: "", fecha: "", observacion: "" }));
+    void addMut
+      .mutateAsync({
+        tipo: form.tipo,
+        proyectoId: form.proyectoId,
+        proveedor: form.proveedor.trim(),
+        nit: form.nit.trim(),
+        numero: form.numero.trim(),
+        monto: Number(form.monto),
+        fecha: form.fecha,
+        observacion: form.observacion.trim(),
+      })
+      .then(() => {
+        toast.success("📄 Factura registrada correctamente.");
+        setOpen(false);
+        setTouched(false);
+        setForm((f) => ({
+          ...f,
+          proveedor: "",
+          nit: "",
+          numero: "",
+          monto: "",
+          fecha: "",
+          observacion: "",
+        }));
+      })
+      .catch((err: Error) => toast.error(err.message));
   };
 
   if (!puedeVer("contabilidad")) return <AccesoDenegado modulo="Contabilidad" />;
@@ -109,7 +146,7 @@ function ContabilidadPage() {
         description="Movimientos financieros del portafolio. Este módulo no expone planos, APU ni memorias de cálculo."
         action={
           editable ? (
-            <Button onClick={() => setOpen(true)} className="gap-2">
+            <Button onClick={() => setOpen(true)} className="gap-2" disabled={!projects.length}>
               <Plus className="size-4" /> Nueva Factura
             </Button>
           ) : null
@@ -179,9 +216,12 @@ function ContabilidadPage() {
                               variant="ghost"
                               size="icon"
                               className="text-destructive"
+                              disabled={delMut.isPending}
                               onClick={() => {
-                                removeMovimiento(m.id);
-                                toast.success("🗑️ Registro eliminado correctamente.");
+                                void delMut
+                                  .mutateAsync(m.id)
+                                  .then(() => toast.success("🗑️ Registro eliminado correctamente."))
+                                  .catch((err: Error) => toast.error(err.message));
                               }}
                             >
                               <Trash2 className="size-4" />
@@ -229,10 +269,10 @@ function ContabilidadPage() {
             <Field label="Fecha" error={touched ? errores["fecha"] : undefined}>
               <DateInput value={form.fecha} onChange={(v) => set("fecha", v)} />
             </Field>
-            <Field label="Proyecto" full>
+            <Field label="Proyecto" full error={touched ? errores["proyectoId"] : undefined}>
               <Select value={form.proyectoId} onValueChange={(v) => set("proyectoId", v)}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Seleccione un proyecto" />
                 </SelectTrigger>
                 <SelectContent>
                   {projects.map((p) => (
@@ -267,7 +307,9 @@ function ContabilidadPage() {
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={guardar}>Guardar</Button>
+            <Button onClick={guardar} disabled={addMut.isPending}>
+              Guardar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -9,13 +9,14 @@
 
 ## SuperAdmin (dueño del SaaS)
 
-- Panel `/admin`: clientes, vencimientos, marcar pagado, ver usuarios y cambiar plan
+- Panel `/admin`: clientes, vencimientos, marcar pagado, ver/editar usuarios por cliente, historial de recibos
 - **Nuevo cliente**: empresa + plan (mensual/anual) + primer Administrador
-- Ve todas las empresas y perfiles (desde el panel, botón Usuarios por cliente)
+- Ve empresas y perfiles desde el panel (botón Usuarios por cliente)
 - No se bloquea por suscripción vencida
-- **No paga** plan: su cuenta/empresa plataforma no aparece en cobros
-- **No opera la obra** (sin menú de proyectos/presupuesto/etc.; cualquier ruta de obra redirige a `/admin`)
-- Sin menú `/usuarios` de plataforma (usuarios de cliente se ven desde Panel SaaS)
+- **No paga** plan: su cuenta/empresa plataforma no aparece en cobros (`es_plataforma`)
+- **No opera la obra** (sin menú de proyectos/presupuesto/etc.; rutas de obra redirigen a `/admin`)
+- **Mi perfil** en el pie del sidebar (datos personales)
+- Sin menú `/usuarios` de plataforma
 
 ## Administrador (cliente)
 
@@ -30,6 +31,9 @@
 
 1. Cliente paga QR/transferencia (Bs 500 o Bs 5.500)
 2. Envía comprobante
-3. SuperAdmin → **Marcar pagado** solo si el plan está **vencido** (+30 o +365) → genera recibo `REC-AAAA-#####`
-4. SuperAdmin puede **reimprimir recibos** desde Historial de pagos
-5. SuperAdmin puede **cambiar plan** (mensual ↔ anual) sin alterar la fecha fin actual; el próximo pago usa el nuevo periodo
+3. SuperAdmin → **Marcar pagado** solo si el plan está **vencido**
+4. Al confirmar, elige **mensual (default)** o **anual** → genera recibo `REC-AAAA-#####` y reactiva vigencia
+5. Recibo: vista previa, imprimir, **descargar PDF** (en móvil se abre en el visor para WhatsApp)
+6. SuperAdmin puede **reimprimir / re-descargar** desde Historial de pagos
+
+> El periodo del próximo cobro se define al marcar pagado (no hay botón aparte de “Cambiar plan”).

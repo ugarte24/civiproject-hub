@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
@@ -32,7 +32,8 @@ import {
 } from "@/components/ui/table";
 import { PageHeader, AccesoDenegado } from "@/components/AppShell";
 import { Field } from "@/components/Field";
-import { useStore, usePermisos, money } from "@/lib/store";
+import { usePermisos, money } from "@/lib/store";
+import { useAddPartida, useDeletePartida, usePartidas, useProyectos } from "@/lib/obra/hooks";
 
 export const Route = createFileRoute("/presupuesto")({
   head: () => ({
@@ -43,25 +44,27 @@ export const Route = createFileRoute("/presupuesto")({
         content:
           "Control de partidas presupuestarias por proyecto: monto contratado, ejecutado y saldo disponible.",
       },
-      { property: "og:title", content: "Presupuesto — SIGOC" },
-      {
-        property: "og:description",
-        content: "Partidas de obra, ejecución y saldo por proyecto civil.",
-      },
     ],
   }),
   component: PresupuestoPage,
 });
 
 function PresupuestoPage() {
-  const { projects, partidas, addPartida, removePartida } = useStore();
+  const { data: projects = [] } = useProyectos();
+  const { data: partidas = [] } = usePartidas();
+  const addMut = useAddPartida();
+  const delMut = useDeletePartida();
   const { puedeVer, puedeEditar } = usePermisos();
-  const [proyectoId, setProyectoId] = useState(projects[0]?.id ?? "");
+  const [proyectoId, setProyectoId] = useState("");
   const [open, setOpen] = useState(false);
   const [nombre, setNombre] = useState("");
   const [monto, setMonto] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [touched, setTouched] = useState(false);
+
+  useEffect(() => {
+    if (!proyectoId && projects[0]?.id) setProyectoId(projects[0].id);
+  }, [projects, proyectoId]);
 
   const editable = puedeEditar("presupuesto");
   const lista = partidas.filter((p) => p.proyectoId === proyectoId);
@@ -80,16 +83,25 @@ function PresupuestoPage() {
   const guardar = () => {
     if (Object.keys(errores).length) {
       setTouched(true);
-      toast.error("❌ Error al guardar los datos. Revise los campos marcados.");
+      toast.error("Revise los campos marcados.");
       return;
     }
-    addPartida({ proyectoId, nombre, monto: Number(monto), descripcion });
-    toast.success("✅ Partida registrada correctamente.");
-    setOpen(false);
-    setNombre("");
-    setMonto("");
-    setDescripcion("");
-    setTouched(false);
+    void addMut
+      .mutateAsync({
+        proyectoId,
+        nombre: nombre.trim(),
+        monto: Number(monto),
+        descripcion: descripcion.trim(),
+      })
+      .then(() => {
+        toast.success("Partida registrada.");
+        setOpen(false);
+        setNombre("");
+        setMonto("");
+        setDescripcion("");
+        setTouched(false);
+      })
+      .catch((err: Error) => toast.error(err.message));
   };
 
   if (!puedeVer("presupuesto")) return <AccesoDenegado modulo="Presupuesto" />;
@@ -173,7 +185,10 @@ function PresupuestoPage() {
                       size="icon"
                       className="text-destructive"
                       onClick={() => {
-                        removePartida(p.id);
+                        void delMut.mutateAsync(p.id).then(
+                          () => toast.success("Partida eliminada."),
+                          (err: Error) => toast.error(err.message),
+                        );
                         toast.success("🗑️ Partida eliminada correctamente.");
                       }}
                     >

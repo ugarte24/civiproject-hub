@@ -1,7 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -10,7 +22,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PageHeader, AccesoDenegado } from "@/components/AppShell";
-import { useStore, usePermisos, fecha } from "@/lib/store";
+import { Field } from "@/components/Field";
+import { DateInput } from "@/components/DateInput";
+import { usePermisos, fecha, type Actividad } from "@/lib/store";
+import { useActividades, useProyectos, useUpsertActividad } from "@/lib/obra/hooks";
 
 export const Route = createFileRoute("/cronograma")({
   head: () => ({
@@ -35,9 +50,26 @@ const dias = (a: string, b: string) =>
   Math.max(1, Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000));
 
 function CronogramaPage() {
-  const { projects, actividades } = useStore();
-  const { puedeVer } = usePermisos();
-  const [proyectoId, setProyectoId] = useState(projects[0]?.id ?? "");
+  const { data: projects = [] } = useProyectos();
+  const { data: actividades = [] } = useActividades();
+  const upsertMut = useUpsertActividad();
+  const { puedeVer, puedeEditar } = usePermisos();
+  const editable = puedeEditar("cronograma");
+  const [proyectoId, setProyectoId] = useState("");
+  const [open, setOpen] = useState(false);
+  const [touched, setTouched] = useState(false);
+  const [form, setForm] = useState({
+    nombre: "",
+    inicio: "",
+    fin: "",
+    responsable: "",
+    estado: "Pendiente" as Actividad["estado"],
+    avance: "0",
+  });
+
+  useEffect(() => {
+    if (!proyectoId && projects[0]?.id) setProyectoId(projects[0].id);
+  }, [projects, proyectoId]);
 
   if (!puedeVer("cronograma")) return <AccesoDenegado modulo="Cronograma" />;
 
@@ -55,12 +87,58 @@ function CronogramaPage() {
         ? "bg-accent"
         : "bg-primary/40";
 
+  const errores: Record<string, string> = {};
+  if (form.nombre.trim().length < 3) errores["nombre"] = "Mínimo 3 caracteres.";
+  if (!form.inicio) errores["inicio"] = "Inicio requerido.";
+  if (!form.fin) errores["fin"] = "Fin requerido.";
+  if (form.inicio && form.fin && form.fin < form.inicio) errores["fin"] = "Fin debe ser ≥ inicio.";
+  if (!proyectoId) errores["proyecto"] = "Seleccione un proyecto.";
+
+  const guardar = () => {
+    if (Object.keys(errores).length) {
+      setTouched(true);
+      toast.error("Revise los campos marcados.");
+      return;
+    }
+    void upsertMut
+      .mutateAsync({
+        proyectoId,
+        nombre: form.nombre.trim(),
+        inicio: form.inicio,
+        fin: form.fin,
+        responsable: form.responsable.trim(),
+        estado: form.estado,
+        avance: Math.min(100, Math.max(0, Number(form.avance) || 0)),
+      })
+      .then(() => {
+        toast.success("Actividad registrada.");
+        setOpen(false);
+        setTouched(false);
+        setForm({
+          nombre: "",
+          inicio: "",
+          fin: "",
+          responsable: "",
+          estado: "Pendiente",
+          avance: "0",
+        });
+      })
+      .catch((err: Error) => toast.error(err.message));
+  };
+
   return (
     <div>
       <PageHeader
         kicker="Planificación"
         title="Cronograma de obra"
         description="Vista Gantt de actividades con duración, responsable y grado de avance."
+        action={
+          editable ? (
+            <Button onClick={() => setOpen(true)} className="gap-2" disabled={!proyectoId}>
+              <Plus className="size-4" /> Nueva actividad
+            </Button>
+          ) : null
+        }
       />
 
       <div className="mb-4">
@@ -145,6 +223,74 @@ function CronogramaPage() {
           </div>
         </div>
       ) : null}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-display text-2xl tracking-wide uppercase">
+              Nueva actividad
+            </DialogTitle>
+            <DialogDescription>Programe una actividad en el cronograma del proyecto.</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Nombre" error={touched ? errores["nombre"] : undefined} full>
+              <Input
+                value={form.nombre}
+                onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
+              />
+            </Field>
+            <Field label="Responsable">
+              <Input
+                value={form.responsable}
+                onChange={(e) => setForm((f) => ({ ...f, responsable: e.target.value }))}
+              />
+            </Field>
+            <Field label="Inicio" error={touched ? errores["inicio"] : undefined}>
+              <DateInput
+                value={form.inicio}
+                onChange={(v) => setForm((f) => ({ ...f, inicio: v }))}
+              />
+            </Field>
+            <Field label="Fin" error={touched ? errores["fin"] : undefined}>
+              <DateInput value={form.fin} onChange={(v) => setForm((f) => ({ ...f, fin: v }))} />
+            </Field>
+            <Field label="Estado">
+              <Select
+                value={form.estado}
+                onValueChange={(v) =>
+                  setForm((f) => ({ ...f, estado: v as Actividad["estado"] }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Pendiente">Pendiente</SelectItem>
+                  <SelectItem value="En curso">En curso</SelectItem>
+                  <SelectItem value="Concluida">Concluida</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Avance (%)">
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={form.avance}
+                onChange={(e) => setForm((f) => ({ ...f, avance: e.target.value }))}
+              />
+            </Field>
+          </div>
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={guardar} disabled={upsertMut.isPending}>
+              Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

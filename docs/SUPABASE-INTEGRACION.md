@@ -510,3 +510,17 @@ Inserta en SQL los 4 proyectos demo del store (Pavimentación Costanera, Puente 
 5. Implementar `/login` y cargar el perfil.
 
 Cuando quieras, el siguiente paso en el repo puede ser **implementar el cliente + login + tabla proyectos** sobre este plan.
+
+---
+
+## Actualización Agosto 2026 — Obra multi-tenant
+
+Ya aplicado en migraciones y frontend:
+
+- `proyectos.empresa_id` + unique `(empresa_id, codigo)`
+- RLS por `current_empresa_id()` / `proyecto_de_mi_empresa()`
+- `configuracion_empresa` (una fila por empresa)
+- Buckets Storage `documentos` y `fotografias` (path `{empresa_id}/{proyecto_id}/…`)
+- Fotos: compresión en cliente (`src/lib/compress-image.ts`) antes de subir
+- Hooks React Query: `src/lib/obra/hooks.ts`
+- `store.tsx` solo tipos + permisos + rol (sin CRUD mock)
