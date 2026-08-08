@@ -58,7 +58,9 @@ import {
   useDeleteProyecto,
   useProyectos,
   useUpsertProyecto,
+  useConfigEmpresa,
 } from "@/lib/obra/hooks";
+import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/proyectos")({
   head: () => ({
@@ -116,8 +118,31 @@ const emptyForm: FormState = {
   estado: "Activo",
 };
 
+/** Genera el siguiente código numérico AAAANNN (ej. 2026001). */
+function siguienteCodigo(projects: Project[]): string {
+  const year = String(new Date().getFullYear());
+  let max = 0;
+  for (const p of projects) {
+    const c = p.codigo.trim();
+    if (/^\d+$/.test(c) && c.startsWith(year) && c.length > year.length) {
+      const n = Number(c.slice(year.length));
+      if (Number.isFinite(n) && n > max) max = n;
+      continue;
+    }
+    // Compatibilidad con códigos antiguos PRY-AAAA-NNN
+    const legacy = `PRY-${year}-`;
+    if (c.startsWith(legacy)) {
+      const n = Number(c.slice(legacy.length));
+      if (Number.isFinite(n) && n > max) max = n;
+    }
+  }
+  return `${year}${String(max + 1).padStart(3, "0")}`;
+}
+
 function ProyectosPage() {
   const { data: projects = [], isLoading } = useProyectos();
+  const { data: config } = useConfigEmpresa();
+  const { subscription } = useAuth();
   const upsert = useUpsertProyecto();
   const remove = useDeleteProyecto();
   const { puedeVer, puedeEditar } = usePermisos();
@@ -131,6 +156,10 @@ function ProyectosPage() {
   const [filtro, setFiltro] = useState<string>("todos");
 
   const editable = puedeEditar("proyectos");
+  const empresaLogueada =
+    config?.nombre_empresa?.trim() ||
+    subscription.suscripcion?.empresa_nombre?.trim() ||
+    "";
 
   const errores = useMemo(() => {
     const e: Record<string, string> = {};
@@ -166,7 +195,11 @@ function ProyectosPage() {
 
   const abrirNuevo = () => {
     setEditing(null);
-    setForm(emptyForm);
+    setForm({
+      ...emptyForm,
+      codigo: siguienteCodigo(projects),
+      empresa: empresaLogueada,
+    });
     setTouched({});
     setOpen(true);
   };
@@ -199,7 +232,7 @@ function ProyectosPage() {
       return;
     }
     const payload = {
-      codigo: form.codigo.trim(),
+      codigo: (editing ? editing.codigo : form.codigo || siguienteCodigo(projects)).trim(),
       nombre: form.nombre.trim(),
       entidad: form.entidad.trim(),
       empresa: form.empresa.trim(),
@@ -410,7 +443,9 @@ function ProyectosPage() {
               {editing ? "Editar Proyecto" : "Nuevo Proyecto"}
             </DialogTitle>
             <DialogDescription>
-              Complete la información del proyecto. Los campos se validan de forma inmediata.
+              {editing
+                ? "Actualice la información del proyecto. El código no se modifica."
+                : "El código se asigna automáticamente. Complete el resto de la información."}
             </DialogDescription>
           </DialogHeader>
 
@@ -418,9 +453,10 @@ function ProyectosPage() {
             <Field label="Código" error={err("codigo")}>
               <Input
                 value={form.codigo}
-                onChange={(e) => set("codigo", e.target.value)}
-                onBlur={() => blur("codigo")}
-                placeholder="PRY-2026-004"
+                readOnly
+                tabIndex={-1}
+                className="bg-muted/50 font-mono text-sm"
+                title="Código generado automáticamente"
               />
             </Field>
             <Field label="Presupuesto (Bs)" error={err("presupuesto")}>

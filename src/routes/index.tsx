@@ -174,7 +174,7 @@ function Dashboard() {
   const avanceFinanciero = presupuesto ? Math.round((ejecutado / presupuesto) * 100) : 0;
 
   const chartPresupuesto = projects.map((p) => ({
-    name: p.codigo.replace("PRY-", ""),
+    name: p.codigo,
     Presupuesto: p.presupuesto,
     Ejecutado: p.ejecutado,
   }));

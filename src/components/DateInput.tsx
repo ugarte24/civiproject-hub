@@ -126,6 +126,8 @@ export function DateInput({ value, onChange, onBlur, className, disabled, ...pro
             mode="single"
             locale={es}
             captionLayout="dropdown"
+            startMonth={new Date(2000, 0)}
+            endMonth={new Date(2045, 11)}
             selected={selected}
             defaultMonth={selected ?? new Date()}
             onSelect={(day) => {
