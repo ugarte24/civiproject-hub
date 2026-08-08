@@ -1,27 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <rect width="512" height="512" fill="#E5A23B"/>
-  <path
-    d="M128 296V240a128 128 0 0 1 256 0v56"
-    stroke="#1C2433"
-    stroke-width="36"
+  <defs>
+    <linearGradient id="accent" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#eb9423"/>
+      <stop offset="1" stop-color="#f1ba4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#accent)"/>
+  <!-- HardHat Lucide 24×24 escalado a ~58% del canvas (como size*0.45 en SigocLogo) -->
+  <g
+    transform="translate(106.67 106.67) scale(12.444)"
+    stroke="#301904"
+    stroke-width="2"
     stroke-linecap="round"
     stroke-linejoin="round"
-  />
-  <path
-    d="M88 296h336"
-    stroke="#1C2433"
-    stroke-width="36"
-    stroke-linecap="round"
-  />
-  <path
-    d="M208 168V144a48 48 0 0 1 96 0v24"
-    stroke="#1C2433"
-    stroke-width="36"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  />
-  <path
-    d="M112 352h288a24 24 0 0 0 0-48H112a24 24 0 0 0 0 48Z"
-    fill="#1C2433"
-  />
+    fill="none"
+  >
+    <path d="M10 10V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v5"/>
+    <path d="M14 6a6 6 0 0 1 6 6v3"/>
+    <path d="M4 15v-3a6 6 0 0 1 6-6"/>
+    <rect x="2" y="15" width="20" height="4" rx="1"/>
+  </g>
 </svg>
