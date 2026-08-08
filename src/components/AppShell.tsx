@@ -219,6 +219,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <LogOut className="size-4" />
                   {cerrando ? "Cerrando…" : "Cerrar sesión"}
                 </Button>
+                <p className="px-1 pt-2 text-[11px] text-sidebar-foreground/50">
+                  {getAppFooterLabel()}
+                </p>
               </div>
             </SheetContent>
           </Sheet>
