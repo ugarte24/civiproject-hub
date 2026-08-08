@@ -26,16 +26,20 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     }
   }, [loading, session, isSuperAdmin, pathname, navigate]);
 
-  // Solo bloquear en la carga INICIAL (aún no hay perfil).
-  // Tras eso, ni en desktop ni en móvil un refresh de token debe desmontar
-  // diálogos, selectores de archivo ni formularios.
-  if (!profile && (loading || subscription.loading || Boolean(session))) {
+  // Carga inicial: esperar sesión + perfil.
+  if (loading || (session && !profile)) {
     return <LoadingScreen message="Cargando sesión…" />;
   }
 
   if (!session) {
-    // Redirigiendo a /login: no dejar un frame vacío / contenido residual
     return <LoadingScreen message="Redirigiendo…" />;
+  }
+
+  // Esperar suscripción antes de decidir "plan vencido".
+  // subscription.loading solo es true en el bootstrap inicial (los refresh de
+  // token ya no lo activan), así no se desmontan diálogos en desktop/móvil.
+  if (subscription.loading) {
+    return <LoadingScreen message="Cargando sesión…" />;
   }
 
   // SuperAdmin puede entrar a /admin aunque no tenga suscripción de cliente
