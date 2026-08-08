@@ -67,13 +67,13 @@ export function SuperAdminProfileDialog({
   }, [open, profile?.nombre, profile?.telefono]);
 
   const errores: Record<string, string> = {};
-  if (form.nombre.trim().length < 4) errores.nombre = "Mínimo 4 caracteres.";
-  if (form.telefono && !/^\d{7,15}$/.test(form.telefono)) {
-    errores.telefono = "Teléfono de 7 a 15 dígitos.";
+  if (form["nombre"].trim().length < 4) errores["nombre"] = "Mínimo 4 caracteres.";
+  if (form["telefono"] && !/^\d{7,15}$/.test(form["telefono"])) {
+    errores["telefono"] = "Teléfono de 7 a 15 dígitos.";
   }
-  if (form.password) {
-    if (form.password.length < 8) errores.password = "Mínimo 8 caracteres.";
-    if (form.password !== form.password2) errores.password2 = "Las contraseñas no coinciden.";
+  if (form["password"]) {
+    if (form["password"].length < 8) errores["password"] = "Mínimo 8 caracteres.";
+    if (form["password"] !== form["password2"]) errores["password2"] = "Las contraseñas no coinciden.";
   }
 
   const guardar = async () => {
@@ -88,27 +88,27 @@ export function SuperAdminProfileDialog({
       const { error } = await supabase
         .from("profiles")
         .update({
-          nombre: form.nombre.trim(),
-          telefono: form.telefono.trim() || null,
+          nombre: form["nombre"].trim(),
+          telefono: form["telefono"].trim() || null,
         })
         .eq("id", profile.id);
       if (error) throw error;
 
-      if (form.password) {
+      if (form["password"]) {
         const { error: authErr } = await supabase.auth.updateUser({
-          password: form.password,
-          data: { nombre: form.nombre.trim() },
+          password: form["password"],
+          data: { nombre: form["nombre"].trim() },
         });
         if (authErr) throw authErr;
       } else {
         const { error: metaErr } = await supabase.auth.updateUser({
-          data: { nombre: form.nombre.trim() },
+          data: { nombre: form["nombre"].trim() },
         });
         if (metaErr) console.warn("No se pudo actualizar metadata Auth:", metaErr.message);
       }
 
       await refreshProfile();
-      toast.success("Datos del SuperAdmin actualizados.");
+      toast.success("Perfil actualizado.");
       onOpenChange(false);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "No se pudo guardar";
@@ -126,39 +126,39 @@ export function SuperAdminProfileDialog({
             Mi perfil
           </DialogTitle>
           <DialogDescription>
-            Actualice el perfil del SuperAdmin. El correo de acceso no se modifica aquí.
+            Actualice su nombre, teléfono o contraseña. El correo de acceso no se modifica aquí.
           </DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Nombre" error={touched ? errores.nombre : undefined} full>
+          <Field label="Nombre" error={touched ? errores["nombre"] : undefined} full>
             <Input
-              value={form.nombre}
+              value={form["nombre"]}
               onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
             />
           </Field>
           <Field label="Correo">
             <Input value={profile?.correo ?? ""} disabled />
           </Field>
-          <Field label="Teléfono" error={touched ? errores.telefono : undefined} full>
+          <Field label="Teléfono" error={touched ? errores["telefono"] : undefined} full>
             <Input
-              value={form.telefono}
+              value={form["telefono"]}
               onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))}
               placeholder="Opcional"
             />
           </Field>
-          <Field label="Nueva contraseña" error={touched ? errores.password : undefined}>
+          <Field label="Nueva contraseña" error={touched ? errores["password"] : undefined}>
             <Input
               type="password"
-              value={form.password}
+              value={form["password"]}
               onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
               placeholder="Dejar vacío para no cambiar"
               autoComplete="new-password"
             />
           </Field>
-          <Field label="Confirmar contraseña" error={touched ? errores.password2 : undefined}>
+          <Field label="Confirmar contraseña" error={touched ? errores["password2"] : undefined}>
             <Input
               type="password"
-              value={form.password2}
+              value={form["password2"]}
               onChange={(e) => setForm((f) => ({ ...f, password2: e.target.value }))}
               placeholder="Repetir si cambia"
               autoComplete="new-password"

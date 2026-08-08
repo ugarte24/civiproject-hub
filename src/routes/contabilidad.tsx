@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Plus, Paperclip, ImageIcon, Trash2 } from "lucide-react";
+import { Plus, Paperclip, ImageIcon, Trash2, ExternalLink, Pencil } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -32,12 +32,14 @@ import {
 import { PageHeader, AccesoDenegado } from "@/components/AppShell";
 import { Field } from "@/components/Field";
 import { DateInput } from "@/components/DateInput";
-import { usePermisos, money, fecha, type MovimientoTipo } from "@/lib/store";
+import { usePermisos, money, fecha, type Movimiento, type MovimientoTipo } from "@/lib/store";
 import {
+  signedUrl,
   useAddMovimiento,
   useDeleteMovimiento,
   useMovimientos,
   useProyectos,
+  useUpdateMovimiento,
 } from "@/lib/obra/hooks";
 
 export const Route = createFileRoute("/contabilidad")({
@@ -65,11 +67,16 @@ function ContabilidadPage() {
   const { data: projects = [] } = useProyectos();
   const { data: movimientos = [] } = useMovimientos();
   const addMut = useAddMovimiento();
+  const updateMut = useUpdateMovimiento();
   const delMut = useDeleteMovimiento();
   const { puedeVer, puedeEditar } = usePermisos();
   const editable = puedeEditar("contabilidad");
+  const [tab, setTab] = useState<MovimientoTipo>("Factura");
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Movimiento | null>(null);
   const [touched, setTouched] = useState(false);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [imgFile, setImgFile] = useState<File | null>(null);
   const [form, setForm] = useState({
     proveedor: "",
     nit: "",
@@ -97,38 +104,88 @@ function ContabilidadPage() {
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
+  const resetForm = () => {
+    setEditing(null);
+    setPdfFile(null);
+    setImgFile(null);
+    setTouched(false);
+    setForm((f) => ({
+      ...f,
+      proveedor: "",
+      nit: "",
+      numero: "",
+      monto: "",
+      fecha: "",
+      observacion: "",
+      tipo: tab,
+    }));
+  };
+
+  const abrirNuevo = (tipo?: MovimientoTipo) => {
+    resetForm();
+    setForm((f) => ({ ...f, tipo: tipo ?? tab }));
+    setOpen(true);
+  };
+
+  const abrirEditar = (m: Movimiento) => {
+    setEditing(m);
+    setForm({
+      proveedor: m.proveedor,
+      nit: m.nit,
+      numero: m.numero,
+      monto: String(m.monto),
+      fecha: m.fecha,
+      observacion: m.observacion,
+      proyectoId: m.proyectoId,
+      tipo: m.tipo,
+    });
+    setPdfFile(null);
+    setImgFile(null);
+    setTouched(false);
+    setOpen(true);
+  };
+
   const guardar = () => {
     if (Object.keys(errores).length) {
       setTouched(true);
-      toast.error("❌ Error al guardar los datos. Revise los campos marcados.");
+      toast.error("Revise los campos marcados.");
       return;
     }
-    void addMut
-      .mutateAsync({
-        tipo: form.tipo,
-        proyectoId: form.proyectoId,
-        proveedor: form.proveedor.trim(),
-        nit: form.nit.trim(),
-        numero: form.numero.trim(),
-        monto: Number(form.monto),
-        fecha: form.fecha,
-        observacion: form.observacion.trim(),
-      })
+    const file = pdfFile ?? imgFile;
+    const payload = {
+      tipo: form.tipo,
+      proyectoId: form.proyectoId,
+      proveedor: form.proveedor.trim(),
+      nit: form.nit.trim(),
+      numero: form.numero.trim(),
+      monto: Number(form.monto),
+      fecha: form.fecha,
+      observacion: form.observacion.trim(),
+      ...(file ? { file } : {}),
+    };
+    const mut = editing
+      ? updateMut.mutateAsync({
+          id: editing.id,
+          ...payload,
+          ...(editing.adjuntoPath ? { adjuntoPath: editing.adjuntoPath } : {}),
+        })
+      : addMut.mutateAsync(payload);
+    void mut
       .then(() => {
-        toast.success("📄 Factura registrada correctamente.");
+        toast.success(editing ? "Movimiento actualizado." : `${form.tipo} registrado correctamente.`);
         setOpen(false);
-        setTouched(false);
-        setForm((f) => ({
-          ...f,
-          proveedor: "",
-          nit: "",
-          numero: "",
-          monto: "",
-          fecha: "",
-          observacion: "",
-        }));
+        resetForm();
       })
       .catch((err: Error) => toast.error(err.message));
+  };
+
+  const verAdjunto = async (path: string) => {
+    try {
+      const url = await signedUrl("documentos", path);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo abrir el adjunto.");
+    }
   };
 
   if (!puedeVer("contabilidad")) return <AccesoDenegado modulo="Contabilidad" />;
@@ -146,8 +203,8 @@ function ContabilidadPage() {
         description="Movimientos financieros del portafolio. Este módulo no expone planos, APU ni memorias de cálculo."
         action={
           editable ? (
-            <Button onClick={() => setOpen(true)} className="gap-2" disabled={!projects.length}>
-              <Plus className="size-4" /> Nueva Factura
+            <Button onClick={() => abrirNuevo()} className="gap-2" disabled={!projects.length}>
+              <Plus className="size-4" /> Nuevo movimiento
             </Button>
           ) : null
         }
@@ -169,7 +226,7 @@ function ContabilidadPage() {
       </div>
 
       <div className="panel mt-4 p-3 sm:p-4">
-        <Tabs defaultValue="Factura">
+        <Tabs value={tab} onValueChange={(v) => setTab(v as MovimientoTipo)}>
           <div className="-mx-1 overflow-x-auto px-1 pb-1">
             <TabsList className="inline-flex h-auto min-w-full w-max flex-nowrap justify-start gap-1">
               {tabs.map((t) => (
@@ -193,6 +250,7 @@ function ContabilidadPage() {
                       <TableHead>Fecha</TableHead>
                       <TableHead className="text-right">Monto</TableHead>
                       <TableHead>Observación</TableHead>
+                      <TableHead>Adjunto</TableHead>
                       {editable ? <TableHead /> : null}
                     </TableRow>
                   </TableHeader>
@@ -210,29 +268,56 @@ function ContabilidadPage() {
                         <TableCell className="max-w-[220px] truncate text-sm text-muted-foreground">
                           {m.observacion}
                         </TableCell>
-                        {editable ? (
-                          <TableCell>
+                        <TableCell>
+                          {m.adjuntoPath ? (
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="text-destructive"
-                              disabled={delMut.isPending}
-                              onClick={() => {
-                                void delMut
-                                  .mutateAsync(m.id)
-                                  .then(() => toast.success("🗑️ Registro eliminado correctamente."))
-                                  .catch((err: Error) => toast.error(err.message));
-                              }}
+                              onClick={() => void verAdjunto(m.adjuntoPath!)}
+                              aria-label="Ver adjunto"
                             >
-                              <Trash2 className="size-4" />
+                              <ExternalLink className="size-4" />
                             </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        {editable ? (
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => abrirEditar(m)}
+                                aria-label="Editar"
+                              >
+                                <Pencil className="size-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-destructive"
+                                disabled={delMut.isPending}
+                                onClick={() => {
+                                  void delMut
+                                    .mutateAsync({
+                                      id: m.id,
+                                      ...(m.adjuntoPath ? { adjuntoPath: m.adjuntoPath } : {}),
+                                    })
+                                    .then(() => toast.success("Registro eliminado."))
+                                    .catch((err: Error) => toast.error(err.message));
+                                }}
+                              >
+                                <Trash2 className="size-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         ) : null}
                       </TableRow>
                     ))}
                     {!lista.length ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
+                        <TableCell colSpan={9} className="py-10 text-center text-sm text-muted-foreground">
                           Sin registros en esta sección.
                         </TableCell>
                       </TableRow>
@@ -245,16 +330,40 @@ function ContabilidadPage() {
         </Tabs>
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(v) => {
+          setOpen(v);
+          if (!v) resetForm();
+        }}
+      >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle className="font-display text-2xl tracking-wide uppercase">
-              Registrar Factura
+              {editing ? "Editar movimiento" : "Registrar movimiento"}
             </DialogTitle>
-            <DialogDescription>Adjunte el respaldo digital del comprobante.</DialogDescription>
+            <DialogDescription>
+              {editing
+                ? "Puede reemplazar el adjunto si lo desea."
+                : "Adjunte el respaldo digital del comprobante (opcional)."}
+            </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Proveedor" error={touched ? errores["proveedor"] : undefined} full>
+            <Field label="Tipo" full>
+              <Select value={form.tipo} onValueChange={(v) => set("tipo", v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {tabs.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t === "Retencion" ? "Retención" : t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Proveedor / concepto" error={touched ? errores["proveedor"] : undefined} full>
               <Input value={form.proveedor} onChange={(e) => set("proveedor", e.target.value)} />
             </Field>
             <Field label="NIT" error={touched ? errores["nit"] : undefined}>
@@ -284,15 +393,43 @@ function ContabilidadPage() {
               </Select>
             </Field>
             <Field label="Adjuntar PDF">
-              <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
-                <Paperclip className="size-4" /> Seleccionar PDF
-                <input type="file" accept=".pdf" className="hidden" />
+              <label className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
+                <span className="flex items-center gap-2">
+                  <Paperclip className="size-4" /> Seleccionar PDF
+                </span>
+                <span className="truncate text-xs">
+                  {pdfFile?.name || "Ningún archivo seleccionado"}
+                </span>
+                <input
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] ?? null;
+                    setPdfFile(f);
+                    if (f) setImgFile(null);
+                  }}
+                />
               </label>
             </Field>
             <Field label="Adjuntar imagen">
-              <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
-                <ImageIcon className="size-4" /> Seleccionar imagen
-                <input type="file" accept="image/*" className="hidden" />
+              <label className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
+                <span className="flex items-center gap-2">
+                  <ImageIcon className="size-4" /> Seleccionar imagen
+                </span>
+                <span className="truncate text-xs">
+                  {imgFile?.name || "Ningún archivo seleccionado"}
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] ?? null;
+                    setImgFile(f);
+                    if (f) setPdfFile(null);
+                  }}
+                />
               </label>
             </Field>
             <Field label="Observación" full>
@@ -307,7 +444,7 @@ function ContabilidadPage() {
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={guardar} disabled={addMut.isPending}>
+            <Button onClick={guardar} disabled={addMut.isPending || updateMut.isPending}>
               Guardar
             </Button>
           </DialogFooter>

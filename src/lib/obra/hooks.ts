@@ -4,7 +4,6 @@ import { useAuth } from "@/lib/auth";
 import type {
   Actividad,
   Apu,
-  ApuInsumo,
   DocCategoria,
   MovimientoTipo,
   Project,
@@ -30,6 +29,7 @@ const qk = {
   actividades: ["obra", "actividades"] as const,
   apus: ["obra", "apus"] as const,
   config: ["obra", "config"] as const,
+  miembros: ["obra", "miembros"] as const,
 };
 
 function throwIf(error: { message: string } | null) {
@@ -109,6 +109,106 @@ export function useDeleteProyecto() {
   });
 }
 
+export type EmpresaUsuario = {
+  id: string;
+  nombre: string;
+  correo: string;
+  rol: string;
+  estado: string;
+};
+
+export function useEmpresaUsuarios(opts?: { enabled?: boolean }) {
+  const { profile } = useAuth();
+  return useQuery({
+    queryKey: [...qk.miembros, "usuarios", profile?.empresa_id],
+    enabled: Boolean(profile?.empresa_id) && (opts?.enabled ?? true),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, nombre, correo, rol, estado")
+        .eq("empresa_id", profile!.empresa_id!)
+        .eq("es_superadmin", false)
+        .order("nombre");
+      throwIf(error);
+      return (data ?? []).map((r) => ({
+        id: r.id as string,
+        nombre: (r.nombre as string) || "—",
+        correo: (r.correo as string) || "—",
+        rol: (r.rol as string) || "Consulta",
+        estado: (r.estado as string) === "Inactivo" ? "Inactivo" : "Activo",
+      })) as EmpresaUsuario[];
+    },
+  });
+}
+
+export type ProyectoMiembro = {
+  proyectoId: string;
+  userId: string;
+  nombre: string;
+  correo: string;
+  rol: string;
+};
+
+export function useProyectoMiembros(proyectoId: string | undefined) {
+  const { profile } = useAuth();
+  return useQuery({
+    queryKey: [...qk.miembros, proyectoId, profile?.empresa_id],
+    enabled: Boolean(profile?.empresa_id && proyectoId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("proyecto_miembros")
+        .select("proyecto_id, user_id, profiles:user_id (id, nombre, correo, rol)")
+        .eq("proyecto_id", proyectoId!);
+      throwIf(error);
+      return (data ?? []).map((r) => {
+        const p = r.profiles as
+          | { id: string; nombre: string | null; correo: string | null; rol: string | null }
+          | null
+          | Array<{ id: string; nombre: string | null; correo: string | null; rol: string | null }>;
+        const profileRow = Array.isArray(p) ? p[0] : p;
+        return {
+          proyectoId: r.proyecto_id as string,
+          userId: r.user_id as string,
+          nombre: profileRow?.nombre || "—",
+          correo: profileRow?.correo || "—",
+          rol: profileRow?.rol || "Consulta",
+        } as ProyectoMiembro;
+      });
+    },
+  });
+}
+
+export function useAddProyectoMiembro() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { proyectoId: string; userId: string }) => {
+      const { error } = await supabase.from("proyecto_miembros").insert({
+        proyecto_id: input.proyectoId,
+        user_id: input.userId,
+      });
+      throwIf(error);
+    },
+    onSuccess: (_d, vars) =>
+      void qc.invalidateQueries({ queryKey: [...qk.miembros, vars.proyectoId] }),
+  });
+}
+
+export function useRemoveProyectoMiembro() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { proyectoId: string; userId: string }) => {
+      const { error } = await supabase
+        .from("proyecto_miembros")
+        .delete()
+        .eq("proyecto_id", input.proyectoId)
+        .eq("user_id", input.userId);
+      throwIf(error);
+    },
+    onSuccess: (_d, vars) =>
+      void qc.invalidateQueries({ queryKey: [...qk.miembros, vars.proyectoId] }),
+  });
+}
+
 export function usePartidas() {
   const { profile } = useAuth();
   return useQuery({
@@ -130,14 +230,40 @@ export function useAddPartida() {
       nombre: string;
       monto: number;
       descripcion: string;
+      ejecutado?: number;
     }) => {
       const { error } = await supabase.from("partidas").insert({
         proyecto_id: p.proyectoId,
         nombre: p.nombre,
         monto: p.monto,
         descripcion: p.descripcion,
-        ejecutado: 0,
+        ejecutado: p.ejecutado ?? 0,
       });
+      throwIf(error);
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: qk.partidas }),
+  });
+}
+
+export function useUpdatePartida() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: {
+      id: string;
+      nombre: string;
+      monto: number;
+      descripcion: string;
+      ejecutado: number;
+    }) => {
+      const { error } = await supabase
+        .from("partidas")
+        .update({
+          nombre: p.nombre,
+          monto: p.monto,
+          descripcion: p.descripcion,
+          ejecutado: p.ejecutado,
+        })
+        .eq("id", p.id);
       throwIf(error);
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: qk.partidas }),
@@ -173,6 +299,7 @@ export function useMovimientos(opts?: { enabled?: boolean }) {
 
 export function useAddMovimiento() {
   const qc = useQueryClient();
+  const { profile } = useAuth();
   return useMutation({
     mutationFn: async (m: {
       tipo: MovimientoTipo;
@@ -183,7 +310,21 @@ export function useAddMovimiento() {
       monto: number;
       fecha: string;
       observacion: string;
+      file?: File | null;
     }) => {
+      if (!profile?.empresa_id) throw new Error("Sin empresa asignada");
+      let adjunto_path: string | null = null;
+      if (m.file) {
+        const ext = m.file.name.split(".").pop() || "bin";
+        adjunto_path = `${profile.empresa_id}/${m.proyectoId}/movimientos/${crypto.randomUUID()}.${ext}`;
+        const { error: upErr } = await supabase.storage
+          .from("documentos")
+          .upload(adjunto_path, m.file, {
+            upsert: false,
+            contentType: m.file.type || "application/octet-stream",
+          });
+        throwIf(upErr);
+      }
       const { error } = await supabase.from("movimientos").insert({
         tipo: m.tipo,
         proyecto_id: m.proyectoId,
@@ -193,7 +334,65 @@ export function useAddMovimiento() {
         monto: m.monto,
         fecha: m.fecha,
         observacion: m.observacion,
+        adjunto_path,
       });
+      throwIf(error);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.movimientos });
+      void qc.invalidateQueries({ queryKey: qk.proyectos });
+    },
+  });
+}
+
+export function useUpdateMovimiento() {
+  const qc = useQueryClient();
+  const { profile } = useAuth();
+  return useMutation({
+    mutationFn: async (m: {
+      id: string;
+      tipo: MovimientoTipo;
+      proyectoId: string;
+      proveedor: string;
+      nit: string;
+      numero: string;
+      monto: number;
+      fecha: string;
+      observacion: string;
+      file?: File | null;
+      adjuntoPath?: string;
+    }) => {
+      if (!profile?.empresa_id) throw new Error("Sin empresa asignada");
+      let adjunto_path = m.adjuntoPath ?? null;
+      if (m.file) {
+        const ext = m.file.name.split(".").pop() || "bin";
+        const newPath = `${profile.empresa_id}/${m.proyectoId}/movimientos/${crypto.randomUUID()}.${ext}`;
+        const { error: upErr } = await supabase.storage
+          .from("documentos")
+          .upload(newPath, m.file, {
+            upsert: false,
+            contentType: m.file.type || "application/octet-stream",
+          });
+        throwIf(upErr);
+        if (m.adjuntoPath) {
+          await supabase.storage.from("documentos").remove([m.adjuntoPath]);
+        }
+        adjunto_path = newPath;
+      }
+      const { error } = await supabase
+        .from("movimientos")
+        .update({
+          tipo: m.tipo,
+          proyecto_id: m.proyectoId,
+          proveedor: m.proveedor,
+          nit: m.nit || null,
+          numero: m.numero || null,
+          monto: m.monto,
+          fecha: m.fecha,
+          observacion: m.observacion,
+          adjunto_path,
+        })
+        .eq("id", m.id);
       throwIf(error);
     },
     onSuccess: () => {
@@ -206,8 +405,11 @@ export function useAddMovimiento() {
 export function useDeleteMovimiento() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("movimientos").delete().eq("id", id);
+    mutationFn: async (m: { id: string; adjuntoPath?: string }) => {
+      if (m.adjuntoPath) {
+        await supabase.storage.from("documentos").remove([m.adjuntoPath]);
+      }
+      const { error } = await supabase.from("movimientos").delete().eq("id", m.id);
       throwIf(error);
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: qk.movimientos }),
@@ -263,6 +465,31 @@ export function useAddDocumento() {
         fecha: new Date().toISOString().slice(0, 10),
         created_by: user?.id ?? null,
       });
+      throwIf(error);
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: qk.documentos }),
+  });
+}
+
+export function useUpdateDocumento() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (d: {
+      id: string;
+      nombre: string;
+      categoria: DocCategoria;
+      proyectoId: string;
+      descripcion: string;
+    }) => {
+      const { error } = await supabase
+        .from("documentos")
+        .update({
+          nombre: d.nombre,
+          categoria: d.categoria,
+          proyecto_id: d.proyectoId,
+          descripcion: d.descripcion,
+        })
+        .eq("id", d.id);
       throwIf(error);
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: qk.documentos }),
@@ -333,6 +560,33 @@ export function useAddFotografia() {
         storage_path: path,
         created_by: user?.id ?? null,
       });
+      throwIf(error);
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: qk.fotografias }),
+  });
+}
+
+export function useUpdateFotografia() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (f: {
+      id: string;
+      proyectoId: string;
+      fecha: string;
+      descripcion: string;
+      ubicacion: string;
+      autor: string;
+    }) => {
+      const { error } = await supabase
+        .from("fotografias")
+        .update({
+          proyecto_id: f.proyectoId,
+          fecha: f.fecha,
+          descripcion: f.descripcion,
+          ubicacion: f.ubicacion,
+          autor: f.autor,
+        })
+        .eq("id", f.id);
       throwIf(error);
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: qk.fotografias }),
@@ -448,6 +702,30 @@ export function useAddApu() {
   });
 }
 
+export function useUpdateApu() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (a: Apu) => {
+      const { error } = await supabase
+        .from("apus")
+        .update({
+          codigo: a.codigo,
+          descripcion: a.descripcion,
+          unidad: a.unidad,
+          cantidad: a.cantidad,
+          materiales: a.materiales,
+          equipos: a.equipos,
+          mano_obra: a.manoObra,
+          indirectos: a.indirectos,
+          utilidad: a.utilidad,
+        })
+        .eq("id", a.id);
+      throwIf(error);
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: qk.apus }),
+  });
+}
+
 export function useDeleteApu() {
   const qc = useQueryClient();
   return useMutation({
@@ -466,7 +744,32 @@ export type ConfigEmpresa = {
   direccion: string | null;
   telefono: string | null;
   moneda: string;
+  costo_indirecto_pct: number;
+  utilidad_pct: number;
+  logo_path: string | null;
+  notif_plazos: boolean;
+  notif_facturas: boolean;
+  notif_informes: boolean;
+  respaldo_auto: boolean;
 };
+
+function mapConfig(data: Record<string, unknown>): ConfigEmpresa {
+  return {
+    empresa_id: String(data["empresa_id"]),
+    nombre_empresa: (data["nombre_empresa"] as string | null) ?? null,
+    nit: (data["nit"] as string | null) ?? null,
+    direccion: (data["direccion"] as string | null) ?? null,
+    telefono: (data["telefono"] as string | null) ?? null,
+    moneda: String(data["moneda"] || "BOB"),
+    costo_indirecto_pct: Number(data["costo_indirecto_pct"] ?? 12),
+    utilidad_pct: Number(data["utilidad_pct"] ?? 10),
+    logo_path: (data["logo_path"] as string | null) ?? null,
+    notif_plazos: data["notif_plazos"] !== false,
+    notif_facturas: data["notif_facturas"] !== false,
+    notif_informes: data["notif_informes"] !== false,
+    respaldo_auto: data["respaldo_auto"] !== false,
+  };
+}
 
 export function useConfigEmpresa() {
   const { profile } = useAuth();
@@ -480,7 +783,8 @@ export function useConfigEmpresa() {
         .eq("empresa_id", profile!.empresa_id!)
         .maybeSingle();
       throwIf(error);
-      return data as ConfigEmpresa | null;
+      if (!data) return null;
+      return mapConfig(data as Record<string, unknown>);
     },
   });
 }
@@ -495,17 +799,84 @@ export function useSaveConfigEmpresa() {
       direccion: string;
       telefono: string;
       moneda: string;
+      costo_indirecto_pct: number;
+      utilidad_pct: number;
+      notif_plazos: boolean;
+      notif_facturas: boolean;
+      notif_informes: boolean;
+      respaldo_auto: boolean;
+      logoFile?: File | null;
+      clearLogo?: boolean;
     }) => {
       if (!profile?.empresa_id) throw new Error("Sin empresa asignada");
+
+      let logo_path: string | null | undefined;
+      if (c.clearLogo) {
+        logo_path = null;
+      } else if (c.logoFile) {
+        const ext = c.logoFile.name.split(".").pop() || "png";
+        logo_path = `${profile.empresa_id}/logo/${crypto.randomUUID()}.${ext}`;
+        const { error: upErr } = await supabase.storage
+          .from("documentos")
+          .upload(logo_path, c.logoFile, {
+            upsert: false,
+            contentType: c.logoFile.type || "image/png",
+          });
+        throwIf(upErr);
+      }
+
+      const { logoFile: _f, clearLogo: _c, ...rest } = c;
       const { error } = await supabase.from("configuracion_empresa").upsert({
         empresa_id: profile.empresa_id,
-        ...c,
+        ...rest,
+        ...(logo_path !== undefined ? { logo_path } : {}),
         updated_at: new Date().toISOString(),
       });
       throwIf(error);
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: qk.config }),
   });
+}
+
+/** Exporta un respaldo JSON de los datos de obra de la empresa actual. */
+export async function exportRespaldoEmpresa(empresaId: string) {
+  const tables = [
+    "proyectos",
+    "partidas",
+    "movimientos",
+    "documentos",
+    "fotografias",
+    "actividades",
+    "apus",
+    "configuracion_empresa",
+  ] as const;
+
+  const payload: Record<string, unknown> = {
+    generado_en: new Date().toISOString(),
+    empresa_id: empresaId,
+    version: 1,
+  };
+
+  for (const table of tables) {
+    let q = supabase.from(table).select("*");
+    if (table === "configuracion_empresa") {
+      q = q.eq("empresa_id", empresaId);
+    } else if (table === "proyectos" || table === "apus") {
+      q = q.eq("empresa_id", empresaId);
+    }
+    // partidas/movimientos/docs/fotos/actividades filtrados por RLS de empresa
+    const { data, error } = await q;
+    throwIf(error);
+    payload[table] = data ?? [];
+  }
+
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `sigoc-respaldo-${empresaId.slice(0, 8)}-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 /** Tipo de proyecto con empresaId opcional para UI. */

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard,
@@ -13,16 +13,14 @@ import {
   Users,
   Settings,
   Menu,
-  Search,
   LogOut,
   Shield,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { usePermisos } from "@/lib/store";
+import { setDefaultCurrency, usePermisos } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { SubscriptionBanner } from "@/components/SubscriptionBanner";
@@ -32,6 +30,15 @@ import {
 } from "@/components/SuperAdminProfileButton";
 import { getAppFooterLabel } from "@/lib/app-version";
 import { SigocLogo } from "@/components/SigocLogo";
+import { useConfigEmpresa } from "@/lib/obra/hooks";
+
+function CurrencySync() {
+  const { data: config } = useConfigEmpresa();
+  useEffect(() => {
+    if (config?.moneda) setDefaultCurrency(config.moneda);
+  }, [config?.moneda]);
+  return null;
+}
 
 const nav = [
   { key: "dashboard", to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -146,6 +153,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-dvh w-full max-w-[100vw] overflow-x-hidden bg-background">
+      <CurrencySync />
       <div className="hidden w-64 shrink-0 lg:block" aria-hidden />
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col overflow-hidden bg-sidebar lg:flex">
         <Brand />
@@ -153,9 +161,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <NavList />
         </div>
         <div className="shrink-0 space-y-1 border-t border-sidebar-border px-4 py-4">
-          {isSuperAdmin ? (
-            <SuperAdminProfileTrigger onClick={() => setProfileOpen(true)} />
-          ) : null}
+          <SuperAdminProfileTrigger onClick={() => setProfileOpen(true)} />
           <Button
             variant="ghost"
             className="w-full justify-start gap-2 text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
@@ -195,14 +201,12 @@ export function AppShell({ children }: { children: ReactNode }) {
                     {isSuperAdmin ? "SuperAdmin" : role}
                   </p>
                 </div>
-                {isSuperAdmin ? (
-                  <SuperAdminProfileTrigger
-                    onClick={() => {
-                      setOpen(false);
-                      setProfileOpen(true);
-                    }}
-                  />
-                ) : null}
+                <SuperAdminProfileTrigger
+                  onClick={() => {
+                    setOpen(false);
+                    setProfileOpen(true);
+                  }}
+                />
                 <Button
                   variant="ghost"
                   className="w-full justify-start gap-2 text-sidebar-foreground/80"
@@ -229,18 +233,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                 {isSuperAdmin ? "SuperAdmin" : role}
               </p>
             </div>
-          </div>
-
-          <div className="relative hidden max-w-sm flex-1 md:block">
-            {isSuperAdmin ? null : (
-              <>
-                <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar proyecto, documento o factura…"
-                  className="bg-background pl-9"
-                />
-              </>
-            )}
           </div>
 
           <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-3">
@@ -293,9 +285,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </main>
       </div>
 
-      {isSuperAdmin ? (
-        <SuperAdminProfileDialog open={profileOpen} onOpenChange={setProfileOpen} />
-      ) : null}
+      <SuperAdminProfileDialog open={profileOpen} onOpenChange={setProfileOpen} />
     </div>
   );
 }

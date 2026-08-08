@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Plus, Trash2, MapPin, Camera as CameraIcon, User } from "lucide-react";
+import { Plus, Trash2, Pencil, MapPin, Camera as CameraIcon, User } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -24,7 +24,7 @@ import {
 import { PageHeader, AccesoDenegado } from "@/components/AppShell";
 import { Field } from "@/components/Field";
 import { DateInput } from "@/components/DateInput";
-import { usePermisos, fecha } from "@/lib/store";
+import { usePermisos, fecha, type Fotografia } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { compressImage, formatBytes } from "@/lib/compress-image";
 import {
@@ -33,6 +33,7 @@ import {
   useDeleteFotografia,
   useFotografias,
   useProyectos,
+  useUpdateFotografia,
 } from "@/lib/obra/hooks";
 
 export const Route = createFileRoute("/fotografias")({
@@ -88,10 +89,12 @@ function FotografiasPage() {
   const { data: projects = [], isLoading: loadingProj } = useProyectos();
   const { data: fotografias = [], isLoading } = useFotografias();
   const addFoto = useAddFotografia();
+  const updateFoto = useUpdateFotografia();
   const delFoto = useDeleteFotografia();
   const { puedeVer, puedeEditar, role } = usePermisos();
   const editable = puedeEditar("fotografias");
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Fotografia | null>(null);
   const [touched, setTouched] = useState(false);
   const [preview, setPreview] = useState("");
   const [compressedFile, setCompressedFile] = useState<File | null>(null);
@@ -119,7 +122,7 @@ function FotografiasPage() {
   if (!form.proyectoId) errores["proyectoId"] = "Seleccione un proyecto.";
   if (!form.fecha) errores["fecha"] = "Fecha requerida.";
   if (form.descripcion.trim().length < 5) errores["descripcion"] = "Mínimo 5 caracteres.";
-  if (!compressedFile) errores["imagen"] = "Seleccione una imagen.";
+  if (!editing && !compressedFile) errores["imagen"] = "Seleccione una imagen.";
 
   const onPickFile = async (file: File | undefined) => {
     if (!file) return;
@@ -137,6 +140,37 @@ function FotografiasPage() {
     }
   };
 
+  const resetForm = () => {
+    setEditing(null);
+    setTouched(false);
+    if (preview.startsWith("blob:")) URL.revokeObjectURL(preview);
+    setPreview("");
+    setCompressedFile(null);
+    setSizeInfo("");
+    setForm((f) => ({ ...f, fecha: "", descripcion: "", ubicacion: "" }));
+  };
+
+  const abrirNuevo = () => {
+    resetForm();
+    setOpen(true);
+  };
+
+  const abrirEditar = (f: Fotografia) => {
+    setEditing(f);
+    setForm({
+      proyectoId: f.proyectoId,
+      fecha: f.fecha,
+      descripcion: f.descripcion,
+      ubicacion: f.ubicacion,
+      autor: f.autor,
+    });
+    setCompressedFile(null);
+    setPreview("");
+    setSizeInfo("");
+    setTouched(false);
+    setOpen(true);
+  };
+
   const guardar = async () => {
     if (Object.keys(errores).length) {
       setTouched(true);
@@ -144,22 +178,29 @@ function FotografiasPage() {
       return;
     }
     try {
-      await addFoto.mutateAsync({
-        proyectoId: form.proyectoId,
-        fecha: form.fecha,
-        descripcion: form.descripcion.trim(),
-        ubicacion: form.ubicacion.trim(),
-        autor: form.autor || profile?.nombre || role,
-        file: compressedFile!,
-      });
-      toast.success("Fotografía subida correctamente.");
+      if (editing) {
+        await updateFoto.mutateAsync({
+          id: editing.id,
+          proyectoId: form.proyectoId,
+          fecha: form.fecha,
+          descripcion: form.descripcion.trim(),
+          ubicacion: form.ubicacion.trim(),
+          autor: form.autor || profile?.nombre || role,
+        });
+        toast.success("Fotografía actualizada.");
+      } else {
+        await addFoto.mutateAsync({
+          proyectoId: form.proyectoId,
+          fecha: form.fecha,
+          descripcion: form.descripcion.trim(),
+          ubicacion: form.ubicacion.trim(),
+          autor: form.autor || profile?.nombre || role,
+          file: compressedFile!,
+        });
+        toast.success("Fotografía subida correctamente.");
+      }
       setOpen(false);
-      setTouched(false);
-      if (preview.startsWith("blob:")) URL.revokeObjectURL(preview);
-      setPreview("");
-      setCompressedFile(null);
-      setSizeInfo("");
-      setForm((f) => ({ ...f, fecha: "", descripcion: "", ubicacion: "" }));
+      resetForm();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "No se pudo guardar";
       toast.error(msg);
@@ -176,7 +217,7 @@ function FotografiasPage() {
         description="Evidencia fotográfica del avance físico (imágenes comprimidas automáticamente)."
         action={
           editable ? (
-            <Button onClick={() => setOpen(true)} className="gap-2" disabled={!projects.length}>
+            <Button onClick={abrirNuevo} className="gap-2" disabled={!projects.length}>
               <Plus className="size-4" /> Nueva Fotografía
             </Button>
           ) : null
@@ -208,19 +249,29 @@ function FotografiasPage() {
                 <span>{fecha(f.fecha)}</span>
               </div>
               {editable ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="mt-2 gap-2 px-0 text-destructive hover:bg-transparent"
-                  onClick={() => {
-                    void delFoto.mutateAsync(f).then(
-                      () => toast.success("Fotografía eliminada."),
-                      (err: Error) => toast.error(err.message),
-                    );
-                  }}
-                >
-                  <Trash2 className="size-4" /> Eliminar
-                </Button>
+                <div className="mt-2 flex flex-wrap gap-3">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-2 px-0 hover:bg-transparent"
+                    onClick={() => abrirEditar(f)}
+                  >
+                    <Pencil className="size-4" /> Editar
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-2 px-0 text-destructive hover:bg-transparent"
+                    onClick={() => {
+                      void delFoto.mutateAsync(f).then(
+                        () => toast.success("Fotografía eliminada."),
+                        (err: Error) => toast.error(err.message),
+                      );
+                    }}
+                  >
+                    <Trash2 className="size-4" /> Eliminar
+                  </Button>
+                </div>
               ) : null}
             </figcaption>
           </figure>
@@ -232,14 +283,22 @@ function FotografiasPage() {
         ) : null}
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(v) => {
+          setOpen(v);
+          if (!v) resetForm();
+        }}
+      >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="font-display text-2xl tracking-wide uppercase">
-              Nueva Fotografía
+              {editing ? "Editar Fotografía" : "Nueva Fotografía"}
             </DialogTitle>
             <DialogDescription>
-              La imagen se comprime automáticamente antes de guardarla.
+              {editing
+                ? "Actualice fecha, ubicación y descripción. La imagen se conserva."
+                : "La imagen se comprime automáticamente antes de guardarla."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -280,33 +339,40 @@ function FotografiasPage() {
                 onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
               />
             </Field>
-            <Field label="Seleccionar imagen" full error={touched ? errores["imagen"] : undefined}>
-              <Input
-                type="file"
-                accept="image/*"
-                onChange={(e) => void onPickFile(e.target.files?.[0])}
-              />
-              {sizeInfo ? (
-                <p className="mt-1 text-xs text-muted-foreground">{sizeInfo}</p>
-              ) : null}
-            </Field>
-            <div className="sm:col-span-2">
-              <p className="label-kicker">Vista previa</p>
-              <div className="mt-2 grid aspect-video place-items-center overflow-hidden rounded-md border border-dashed border-border bg-muted/50">
-                {preview ? (
-                  <img src={preview} alt="Vista previa" className="h-full w-full object-cover" />
-                ) : (
-                  <span className="text-xs text-muted-foreground">Sin imagen seleccionada</span>
-                )}
-              </div>
-            </div>
+            {!editing ? (
+              <>
+                <Field label="Seleccionar imagen" full error={touched ? errores["imagen"] : undefined}>
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => void onPickFile(e.target.files?.[0])}
+                  />
+                  {sizeInfo ? (
+                    <p className="mt-1 text-xs text-muted-foreground">{sizeInfo}</p>
+                  ) : null}
+                </Field>
+                <div className="sm:col-span-2">
+                  <p className="label-kicker">Vista previa</p>
+                  <div className="mt-2 grid aspect-video place-items-center overflow-hidden rounded-md border border-dashed border-border bg-muted/50">
+                    {preview ? (
+                      <img src={preview} alt="Vista previa" className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Sin imagen seleccionada</span>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : null}
           </div>
           <DialogFooter className="gap-2 sm:justify-between">
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={() => void guardar()} disabled={addFoto.isPending}>
-              {addFoto.isPending ? "Subiendo…" : "Guardar"}
+            <Button
+              onClick={() => void guardar()}
+              disabled={addFoto.isPending || updateFoto.isPending}
+            >
+              {addFoto.isPending || updateFoto.isPending ? "Guardando…" : "Guardar"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -61,6 +61,8 @@ export interface Movimiento {
   monto: number;
   fecha: string;
   observacion: string;
+  /** Path en Storage bucket documentos (opcional). */
+  adjuntoPath?: string;
 }
 
 export type DocCategoria =
@@ -144,15 +146,34 @@ export const apuPrecioUnitario = (apu: Apu) => {
   return { directo, indirecto, utilidad, precio: directo + indirecto + utilidad };
 };
 
-export const money = (n: number) =>
+export const money = (n: number, currencyCode?: string) =>
   new Intl.NumberFormat("es-BO", {
     style: "currency",
-    currency: "BOB",
+    currency: resolveCurrencyCode(currencyCode ?? getDefaultCurrency()),
     maximumFractionDigits: 0,
   }).format(n);
 
 export const money2 = (n: number) =>
   new Intl.NumberFormat("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+
+/** Mapea texto de configuración a código ISO 4217. */
+export function resolveCurrencyCode(moneda: string): string {
+  const m = (moneda || "BOB").toUpperCase();
+  if (m.includes("USD") || m.includes("DOLAR") || m.includes("DÓLAR")) return "USD";
+  if (m.includes("EUR") || m.includes("EURO")) return "EUR";
+  if (m.includes("PEN") || m.includes("SOL")) return "PEN";
+  if (m.includes("ARS") || m.includes("PESO")) return "ARS";
+  if (/^[A-Z]{3}$/.test(m.trim())) return m.trim();
+  return "BOB";
+}
+
+let defaultCurrency = "BOB";
+export function setDefaultCurrency(moneda: string) {
+  defaultCurrency = resolveCurrencyCode(moneda);
+}
+export function getDefaultCurrency() {
+  return defaultCurrency;
+}
 
 export const fecha = (iso: string) => {
   if (!iso) return "—";

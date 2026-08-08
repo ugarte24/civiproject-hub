@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +25,12 @@ import { PageHeader, AccesoDenegado } from "@/components/AppShell";
 import { Field } from "@/components/Field";
 import { DateInput } from "@/components/DateInput";
 import { usePermisos, fecha, type Actividad } from "@/lib/store";
-import { useActividades, useProyectos, useUpsertActividad } from "@/lib/obra/hooks";
+import {
+  useActividades,
+  useDeleteActividad,
+  useProyectos,
+  useUpsertActividad,
+} from "@/lib/obra/hooks";
 
 export const Route = createFileRoute("/cronograma")({
   head: () => ({
@@ -49,23 +54,27 @@ export const Route = createFileRoute("/cronograma")({
 const dias = (a: string, b: string) =>
   Math.max(1, Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000));
 
+const formVacio = {
+  nombre: "",
+  inicio: "",
+  fin: "",
+  responsable: "",
+  estado: "Pendiente" as Actividad["estado"],
+  avance: "0",
+};
+
 function CronogramaPage() {
   const { data: projects = [] } = useProyectos();
   const { data: actividades = [] } = useActividades();
   const upsertMut = useUpsertActividad();
+  const delMut = useDeleteActividad();
   const { puedeVer, puedeEditar } = usePermisos();
   const editable = puedeEditar("cronograma");
   const [proyectoId, setProyectoId] = useState("");
   const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
-  const [form, setForm] = useState({
-    nombre: "",
-    inicio: "",
-    fin: "",
-    responsable: "",
-    estado: "Pendiente" as Actividad["estado"],
-    avance: "0",
-  });
+  const [form, setForm] = useState(formVacio);
 
   useEffect(() => {
     if (!proyectoId && projects[0]?.id) setProyectoId(projects[0].id);
@@ -94,6 +103,31 @@ function CronogramaPage() {
   if (form.inicio && form.fin && form.fin < form.inicio) errores["fin"] = "Fin debe ser ≥ inicio.";
   if (!proyectoId) errores["proyecto"] = "Seleccione un proyecto.";
 
+  const resetForm = () => {
+    setEditingId(null);
+    setForm(formVacio);
+    setTouched(false);
+  };
+
+  const abrirNueva = () => {
+    resetForm();
+    setOpen(true);
+  };
+
+  const abrirEditar = (a: Actividad) => {
+    setEditingId(a.id);
+    setForm({
+      nombre: a.nombre,
+      inicio: a.inicio,
+      fin: a.fin,
+      responsable: a.responsable,
+      estado: a.estado,
+      avance: String(a.avance),
+    });
+    setTouched(false);
+    setOpen(true);
+  };
+
   const guardar = () => {
     if (Object.keys(errores).length) {
       setTouched(true);
@@ -102,6 +136,7 @@ function CronogramaPage() {
     }
     void upsertMut
       .mutateAsync({
+        ...(editingId ? { id: editingId } : {}),
         proyectoId,
         nombre: form.nombre.trim(),
         inicio: form.inicio,
@@ -111,17 +146,9 @@ function CronogramaPage() {
         avance: Math.min(100, Math.max(0, Number(form.avance) || 0)),
       })
       .then(() => {
-        toast.success("Actividad registrada.");
+        toast.success(editingId ? "Actividad actualizada." : "Actividad registrada.");
         setOpen(false);
-        setTouched(false);
-        setForm({
-          nombre: "",
-          inicio: "",
-          fin: "",
-          responsable: "",
-          estado: "Pendiente",
-          avance: "0",
-        });
+        resetForm();
       })
       .catch((err: Error) => toast.error(err.message));
   };
@@ -134,7 +161,7 @@ function CronogramaPage() {
         description="Vista Gantt de actividades con duración, responsable y grado de avance."
         action={
           editable ? (
-            <Button onClick={() => setOpen(true)} className="gap-2" disabled={!proyectoId}>
+            <Button onClick={abrirNueva} className="gap-2" disabled={!proyectoId}>
               <Plus className="size-4" /> Nueva actividad
             </Button>
           ) : null
@@ -161,13 +188,20 @@ function CronogramaPage() {
           Desliza horizontalmente para ver el Gantt completo.
         </p>
         <div className="min-w-[720px]">
-          <div className="grid grid-cols-[minmax(230px,1.4fr)_repeat(4,minmax(80px,1fr))_2.5fr] gap-3 border-b border-border pb-2">
+          <div
+            className={`grid gap-3 border-b border-border pb-2 ${
+              editable
+                ? "grid-cols-[minmax(200px,1.3fr)_repeat(4,minmax(70px,1fr))_2fr_70px]"
+                : "grid-cols-[minmax(230px,1.4fr)_repeat(4,minmax(80px,1fr))_2.5fr]"
+            }`}
+          >
             <span className="label-kicker">Actividad</span>
             <span className="label-kicker">Inicio</span>
             <span className="label-kicker">Fin</span>
             <span className="label-kicker">Duración</span>
             <span className="label-kicker">Responsable</span>
             <span className="label-kicker">Barra de programación</span>
+            {editable ? <span className="label-kicker">Acciones</span> : null}
           </div>
 
           {lista.map((a) => {
@@ -176,7 +210,11 @@ function CronogramaPage() {
             return (
               <div
                 key={a.id}
-                className="grid grid-cols-[minmax(230px,1.4fr)_repeat(4,minmax(80px,1fr))_2.5fr] items-center gap-3 border-b border-border/60 py-3 text-sm"
+                className={`grid items-center gap-3 border-b border-border/60 py-3 text-sm ${
+                  editable
+                    ? "grid-cols-[minmax(200px,1.3fr)_repeat(4,minmax(70px,1fr))_2fr_70px]"
+                    : "grid-cols-[minmax(230px,1.4fr)_repeat(4,minmax(80px,1fr))_2.5fr]"
+                }`}
               >
                 <div>
                   <p className="font-medium text-foreground">{a.nombre}</p>
@@ -195,6 +233,32 @@ function CronogramaPage() {
                     title={`${a.avance}% de avance`}
                   />
                 </div>
+                {editable ? (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => abrirEditar(a)}
+                      aria-label="Editar actividad"
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive"
+                      disabled={delMut.isPending}
+                      onClick={() => {
+                        void delMut
+                          .mutateAsync(a.id)
+                          .then(() => toast.success("Actividad eliminada."))
+                          .catch((err: Error) => toast.error(err.message));
+                      }}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                ) : null}
               </div>
             );
           })}
@@ -224,11 +288,17 @@ function CronogramaPage() {
         </div>
       ) : null}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(v) => {
+          setOpen(v);
+          if (!v) resetForm();
+        }}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="font-display text-2xl tracking-wide uppercase">
-              Nueva actividad
+              {editingId ? "Editar actividad" : "Nueva actividad"}
             </DialogTitle>
             <DialogDescription>Programe una actividad en el cronograma del proyecto.</DialogDescription>
           </DialogHeader>

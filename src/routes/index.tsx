@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
 import {
   Building2,
   Activity,
@@ -25,7 +26,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { PageHeader } from "@/components/AppShell";
-import { money, usePermisos, fecha } from "@/lib/store";
+import { money, usePermisos, fecha, type Actividad } from "@/lib/store";
 import {
   useActividades,
   useFotografias,
@@ -85,18 +86,81 @@ function StatCard({
   );
 }
 
+function endOfMonth(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
+}
+
+function isoDate(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function parseLocalDate(iso: string) {
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  return new Date(y!, m! - 1, d!);
+}
+
+function buildChartAvance(
+  projects: { fechaInicio: string; presupuesto: number; ejecutado: number; avanceFisico: number }[],
+  actividades: Actividad[],
+  movimientos: { fecha: string; tipo: string; monto: number }[],
+) {
+  const now = new Date();
+  const meses: { mes: string; fisico: number; financiero: number }[] = [];
+  const presupuesto = projects.reduce((a, p) => a + p.presupuesto, 0) || 1;
+  const egresoTipos = new Set(["Egreso", "Pago", "Factura"]);
+
+  for (let i = 5; i >= 0; i--) {
+    const ref = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const fin = endOfMonth(ref);
+    const finIso = isoDate(fin);
+    const label = ref.toLocaleDateString("es-BO", { month: "short" });
+
+    const proyectosIniciados = projects.filter((p) => p.fechaInicio <= finIso);
+    const fisico = proyectosIniciados.length
+      ? Math.round(
+          proyectosIniciados.reduce((a, p) => a + p.avanceFisico, 0) / proyectosIniciados.length,
+        )
+      : actividades.length
+        ? Math.round(
+            actividades
+              .filter((a) => a.inicio <= finIso)
+              .reduce((a, act) => a + act.avance, 0) /
+              Math.max(1, actividades.filter((a) => a.inicio <= finIso).length),
+          )
+        : 0;
+
+    const gasto = movimientos
+      .filter((m) => egresoTipos.has(m.tipo) && m.fecha <= finIso)
+      .reduce((a, m) => a + m.monto, 0);
+    const financieroProyectos = proyectosIniciados.reduce((a, p) => a + p.ejecutado, 0);
+    const financiero = Math.min(
+      100,
+      Math.round(((gasto > 0 ? gasto : financieroProyectos) / presupuesto) * 100),
+    );
+
+    meses.push({
+      mes: label.charAt(0).toUpperCase() + label.slice(1).replace(".", ""),
+      fisico,
+      financiero,
+    });
+  }
+  return meses;
+}
+
 function Dashboard() {
   const { puedeVer } = usePermisos();
   const { data: proyectos = [] } = useProyectos();
   const { data: movimientos = [] } = useMovimientos({
     enabled: puedeVer("contabilidad"),
   });
-  const { data: actividades = [] } = useActividades({
-    enabled: puedeVer("cronograma"),
-  });
+  const { data: actividades = [] } = useActividades();
   const { data: fotografias = [] } = useFotografias({
     enabled: puedeVer("fotografias"),
   });
+  const [diaSel, setDiaSel] = useState<Date | undefined>(new Date());
 
   const projects = proyectos;
 
@@ -115,14 +179,28 @@ function Dashboard() {
     Ejecutado: p.ejecutado,
   }));
 
-  const chartAvance = [
-    { mes: "Mar", fisico: 0, financiero: 0 },
-    { mes: "Abr", fisico: 0, financiero: 0 },
-    { mes: "May", fisico: 0, financiero: 0 },
-    { mes: "Jun", fisico: 0, financiero: 0 },
-    { mes: "Jul", fisico: 0, financiero: 0 },
-    { mes: "Ago", fisico: avanceFisico, financiero: avanceFinanciero },
-  ];
+  const chartAvance = useMemo(
+    () => buildChartAvance(projects, actividades, movimientos),
+    [projects, actividades, movimientos],
+  );
+
+  const diasObra = useMemo(() => {
+    const set = new Set<string>();
+    for (const a of actividades) {
+      const start = parseLocalDate(a.inicio);
+      const end = parseLocalDate(a.fin);
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        set.add(isoDate(d));
+      }
+    }
+    return [...set].map((iso) => parseLocalDate(iso));
+  }, [actividades]);
+
+  const actividadesDelDia = useMemo(() => {
+    if (!diaSel) return [];
+    const iso = isoDate(diaSel);
+    return actividades.filter((a) => a.inicio <= iso && a.fin >= iso);
+  }, [actividades, diaSel]);
 
   const vencimientos = projects
     .filter((p) => p.estado !== "Finalizado")
@@ -194,6 +272,9 @@ function Dashboard() {
                 <Badge variant="outline">{fecha(p.fechaFinal)}</Badge>
               </li>
             ))}
+            {!vencimientos.length ? (
+              <li className="text-sm text-muted-foreground">Sin vencimientos próximos.</li>
+            ) : null}
           </ul>
         </div>
       </div>
@@ -278,14 +359,44 @@ function Dashboard() {
                 <span className="shrink-0 text-xs text-muted-foreground">{fecha(a.fecha)}</span>
               </li>
             ))}
+            {!actividad.length ? (
+              <li className="py-6 text-center text-sm text-muted-foreground">Sin actividad reciente.</li>
+            ) : null}
           </ul>
         </div>
-        <div className="panel flex flex-col items-center overflow-x-auto p-4 sm:p-5">
-          <p className="label-kicker self-start">Calendario de obra</p>
-          <Calendar mode="single" className="mt-2 w-full max-w-[320px]" />
+        <div className="panel flex flex-col overflow-x-auto p-4 sm:p-5">
+          <p className="label-kicker">Calendario de obra</p>
+          <Calendar
+            mode="single"
+            selected={diaSel}
+            onSelect={setDiaSel}
+            modifiers={{ obra: diasObra }}
+            modifiersClassNames={{
+              obra: "bg-accent/40 font-semibold text-accent-foreground",
+            }}
+            className="mt-2 w-full max-w-[320px] self-center"
+          />
           <p className="mt-2 text-xs text-muted-foreground">
-            {actividades.filter((a) => a.estado === "En curso").length} actividades en curso
+            {actividades.filter((a) => a.estado === "En curso").length} actividades en curso · días
+            marcados tienen programación
           </p>
+          {diaSel ? (
+            <ul className="mt-3 space-y-2 border-t border-border pt-3">
+              {actividadesDelDia.length ? (
+                actividadesDelDia.map((a) => (
+                  <li key={a.id} className="text-sm">
+                    <span className="font-medium">{a.nombre}</span>
+                    <span className="text-muted-foreground">
+                      {" "}
+                      · {a.estado} · {a.avance}%
+                    </span>
+                  </li>
+                ))
+              ) : (
+                <li className="text-xs text-muted-foreground">Sin actividades este día.</li>
+              )}
+            </ul>
+          ) : null}
         </div>
       </div>
     </div>

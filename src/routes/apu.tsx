@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -23,8 +23,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeader, AccesoDenegado } from "@/components/AppShell";
 import { Field } from "@/components/Field";
-import { usePermisos, apuPrecioUnitario, money2, type ApuInsumo } from "@/lib/store";
-import { useAddApu, useApus, useDeleteApu } from "@/lib/obra/hooks";
+import { usePermisos, apuPrecioUnitario, money2, type Apu, type ApuInsumo } from "@/lib/store";
+import {
+  useAddApu,
+  useApus,
+  useConfigEmpresa,
+  useDeleteApu,
+  useUpdateApu,
+} from "@/lib/obra/hooks";
 
 export const Route = createFileRoute("/apu")({
   head: () => ({
@@ -114,19 +120,25 @@ function TablaInsumos({
 
 function ApuPage() {
   const { data: apus = [] } = useApus();
+  const { data: config } = useConfigEmpresa();
   const addMut = useAddApu();
+  const updateMut = useUpdateApu();
   const delMut = useDeleteApu();
   const { puedeVer, puedeEditar } = usePermisos();
   const editable = puedeEditar("apu");
   const [open, setOpen] = useState(false);
-  const [general, setGeneral] = useState({
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const indirectosDef = String(config?.costo_indirecto_pct ?? 12);
+  const utilidadDef = String(config?.utilidad_pct ?? 10);
+  const formVacio = () => ({
     codigo: "",
     descripcion: "",
     unidad: "",
     cantidad: "1",
-    indirectos: "12",
-    utilidad: "10",
+    indirectos: indirectosDef,
+    utilidad: utilidadDef,
   });
+  const [general, setGeneral] = useState(formVacio);
   const [materiales, setMateriales] = useState<ApuInsumo[]>([{ ...filaVacia }]);
   const [equipos, setEquipos] = useState<ApuInsumo[]>([{ ...filaVacia }]);
   const [manoObra, setManoObra] = useState<ApuInsumo[]>([{ ...filaVacia }]);
@@ -134,7 +146,7 @@ function ApuPage() {
   if (!puedeVer("apu")) return <AccesoDenegado modulo="APU" />;
 
   const borrador = {
-    id: "draft",
+    id: editingId ?? "draft",
     codigo: general.codigo,
     descripcion: general.descripcion,
     unidad: general.unidad,
@@ -147,24 +159,54 @@ function ApuPage() {
   };
   const calc = apuPrecioUnitario(borrador);
 
+  const resetForm = () => {
+    setEditingId(null);
+    setGeneral(formVacio());
+    setMateriales([{ ...filaVacia }]);
+    setEquipos([{ ...filaVacia }]);
+    setManoObra([{ ...filaVacia }]);
+  };
+
+  const abrirNuevo = () => {
+    resetForm();
+    setOpen(true);
+  };
+
+  const abrirEditar = (a: Apu) => {
+    setEditingId(a.id);
+    setGeneral({
+      codigo: a.codigo,
+      descripcion: a.descripcion,
+      unidad: a.unidad,
+      cantidad: String(a.cantidad),
+      indirectos: String(a.indirectos),
+      utilidad: String(a.utilidad),
+    });
+    setMateriales(a.materiales.length ? a.materiales : [{ ...filaVacia }]);
+    setEquipos(a.equipos.length ? a.equipos : [{ ...filaVacia }]);
+    setManoObra(a.manoObra.length ? a.manoObra : [{ ...filaVacia }]);
+    setOpen(true);
+  };
+
   const guardar = () => {
     if (!general.codigo.trim() || general.descripcion.trim().length < 5 || !general.unidad.trim()) {
-      toast.error("❌ Error al guardar los datos. Complete código, descripción y unidad.");
+      toast.error("Complete código, descripción y unidad.");
       return;
     }
     const { id: _id, ...rest } = borrador;
-    void addMut
-      .mutateAsync(rest)
+    const mut = editingId
+      ? updateMut.mutateAsync({ id: editingId, ...rest })
+      : addMut.mutateAsync(rest);
+    void mut
       .then(() => {
-        toast.success("✅ APU registrado correctamente.");
+        toast.success(editingId ? "APU actualizado." : "APU registrado correctamente.");
         setOpen(false);
-        setGeneral({ codigo: "", descripcion: "", unidad: "", cantidad: "1", indirectos: "12", utilidad: "10" });
-        setMateriales([{ ...filaVacia }]);
-        setEquipos([{ ...filaVacia }]);
-        setManoObra([{ ...filaVacia }]);
+        resetForm();
       })
       .catch((err: Error) => toast.error(err.message));
   };
+
+  const saving = addMut.isPending || updateMut.isPending;
 
   return (
     <div>
@@ -174,7 +216,7 @@ function ApuPage() {
         description="Composición de costos por ítem: materiales, equipos, mano de obra, indirectos y utilidad."
         action={
           editable ? (
-            <Button onClick={() => setOpen(true)} className="gap-2">
+            <Button onClick={abrirNuevo} className="gap-2">
               <Plus className="size-4" /> Nuevo APU
             </Button>
           ) : null
@@ -195,20 +237,30 @@ function ApuPage() {
                   </p>
                 </div>
                 {editable ? (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-destructive"
-                    disabled={delMut.isPending}
-                    onClick={() => {
-                      void delMut
-                        .mutateAsync(a.id)
-                        .then(() => toast.success("🗑️ APU eliminado correctamente."))
-                        .catch((err: Error) => toast.error(err.message));
-                    }}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => abrirEditar(a)}
+                      aria-label="Editar APU"
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive"
+                      disabled={delMut.isPending}
+                      onClick={() => {
+                        void delMut
+                          .mutateAsync(a.id)
+                          .then(() => toast.success("APU eliminado."))
+                          .catch((err: Error) => toast.error(err.message));
+                      }}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
                 ) : null}
               </div>
               <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
@@ -236,11 +288,17 @@ function ApuPage() {
         })}
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(v) => {
+          setOpen(v);
+          if (!v) resetForm();
+        }}
+      >
         <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-display text-2xl tracking-wide uppercase">
-              Nuevo Análisis de Precio Unitario
+              {editingId ? "Editar APU" : "Nuevo Análisis de Precio Unitario"}
             </DialogTitle>
             <DialogDescription>
               Complete cada pestaña; el resumen calcula el precio unitario en tiempo real.
@@ -336,7 +394,7 @@ function ApuPage() {
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={guardar} disabled={addMut.isPending}>
+            <Button onClick={guardar} disabled={saving}>
               Guardar APU
             </Button>
           </DialogFooter>

@@ -74,6 +74,7 @@ export function mapMovimiento(r: {
   monto: number;
   fecha: string;
   observacion: string | null;
+  adjunto_path?: string | null;
 }): Movimiento {
   return {
     id: r.id,
@@ -85,6 +86,7 @@ export function mapMovimiento(r: {
     monto: Number(r.monto),
     fecha: r.fecha,
     observacion: r.observacion ?? "",
+    ...(r.adjunto_path ? { adjuntoPath: r.adjunto_path } : {}),
   };
 }
 

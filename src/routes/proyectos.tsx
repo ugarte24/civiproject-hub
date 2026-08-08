@@ -45,6 +45,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { PageHeader, AccesoDenegado } from "@/components/AppShell";
 import { Field } from "@/components/Field";
 import { DateInput } from "@/components/DateInput";
+import { ProyectoMiembrosPanel } from "@/components/ProyectoMiembros";
 import { cn } from "@/lib/utils";
 import {
   usePermisos,
@@ -94,6 +95,8 @@ interface FormState {
   empresa: string;
   responsable: string;
   presupuesto: string;
+  ejecutado: string;
+  avanceFisico: string;
   fechaInicio: string;
   fechaFinal: string;
   estado: ProjectStatus;
@@ -106,6 +109,8 @@ const emptyForm: FormState = {
   empresa: "",
   responsable: "",
   presupuesto: "",
+  ejecutado: "0",
+  avanceFisico: "0",
   fechaInicio: "",
   fechaFinal: "",
   estado: "Activo",
@@ -136,6 +141,13 @@ function ProyectosPage() {
     if (!form.responsable.trim()) e["responsable"] = "Indique el ingeniero responsable.";
     if (!form.presupuesto || Number(form.presupuesto) <= 0)
       e["presupuesto"] = "Monto mayor a cero.";
+    if (form.ejecutado === "" || Number(form.ejecutado) < 0)
+      e["ejecutado"] = "Ejecutado ≥ 0.";
+    if (Number(form.ejecutado) > Number(form.presupuesto || 0))
+      e["ejecutado"] = "No puede superar el presupuesto.";
+    const avance = Number(form.avanceFisico);
+    if (form.avanceFisico === "" || !Number.isFinite(avance) || avance < 0 || avance > 100)
+      e["avanceFisico"] = "Entre 0 y 100.";
     if (!form.fechaInicio) e["fechaInicio"] = "Requerida.";
     if (!form.fechaFinal) e["fechaFinal"] = "Requerida.";
     if (form.fechaInicio && form.fechaFinal && form.fechaFinal <= form.fechaInicio)
@@ -168,6 +180,8 @@ function ProyectosPage() {
       empresa: p.empresa,
       responsable: p.responsable,
       presupuesto: String(p.presupuesto),
+      ejecutado: String(p.ejecutado),
+      avanceFisico: String(p.avanceFisico),
       fechaInicio: p.fechaInicio,
       fechaFinal: p.fechaFinal,
       estado: p.estado,
@@ -191,6 +205,8 @@ function ProyectosPage() {
       empresa: form.empresa.trim(),
       responsable: form.responsable.trim(),
       presupuesto: Number(form.presupuesto),
+      ejecutado: Number(form.ejecutado) || 0,
+      avanceFisico: Math.min(100, Math.max(0, Number(form.avanceFisico) || 0)),
       fechaInicio: form.fechaInicio,
       fechaFinal: form.fechaFinal,
       estado: form.estado,
@@ -416,6 +432,25 @@ function ProyectosPage() {
                 placeholder="0.00"
               />
             </Field>
+            <Field label="Ejecutado (Bs)" error={err("ejecutado")}>
+              <Input
+                type="number"
+                min={0}
+                value={form.ejecutado}
+                onChange={(e) => set("ejecutado", e.target.value)}
+                onBlur={() => blur("ejecutado")}
+              />
+            </Field>
+            <Field label="Avance físico (%)" error={err("avanceFisico")}>
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={form.avanceFisico}
+                onChange={(e) => set("avanceFisico", e.target.value)}
+                onBlur={() => blur("avanceFisico")}
+              />
+            </Field>
             <Field label="Nombre del proyecto" error={err("nombre")} full>
               <Input
                 value={form.nombre}
@@ -511,6 +546,7 @@ function ProyectosPage() {
                 <Progress value={detalle.avanceFisico} className="mt-2" />
                 <p className="mt-1 text-xs text-muted-foreground">{detalle.avanceFisico}%</p>
               </div>
+              <ProyectoMiembrosPanel proyectoId={detalle.id} />
             </div>
           ) : null}
         </DialogContent>
@@ -530,17 +566,14 @@ function ProyectosPage() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (borrar) {
-                  void remove.mutateAsync(borrar.id).then(
-                    () => {
-                      toast.success("Proyecto eliminado.");
-                      setBorrar(null);
-                    },
-                    (err: Error) => toast.error(err.message),
-                  );
-                }
-                toast.success("🗑️ Proyecto eliminado correctamente.");
-                setBorrar(null);
+                if (!borrar) return;
+                void remove.mutateAsync(borrar.id).then(
+                  () => {
+                    toast.success("Proyecto eliminado.");
+                    setBorrar(null);
+                  },
+                  (err: Error) => toast.error(err.message),
+                );
               }}
             >
               Eliminar

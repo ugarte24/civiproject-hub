@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -32,8 +32,14 @@ import {
 } from "@/components/ui/table";
 import { PageHeader, AccesoDenegado } from "@/components/AppShell";
 import { Field } from "@/components/Field";
-import { usePermisos, money } from "@/lib/store";
-import { useAddPartida, useDeletePartida, usePartidas, useProyectos } from "@/lib/obra/hooks";
+import { usePermisos, money, type Partida } from "@/lib/store";
+import {
+  useAddPartida,
+  useDeletePartida,
+  usePartidas,
+  useProyectos,
+  useUpdatePartida,
+} from "@/lib/obra/hooks";
 
 export const Route = createFileRoute("/presupuesto")({
   head: () => ({
@@ -53,12 +59,15 @@ function PresupuestoPage() {
   const { data: projects = [] } = useProyectos();
   const { data: partidas = [] } = usePartidas();
   const addMut = useAddPartida();
+  const updateMut = useUpdatePartida();
   const delMut = useDeletePartida();
   const { puedeVer, puedeEditar } = usePermisos();
   const [proyectoId, setProyectoId] = useState("");
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Partida | null>(null);
   const [nombre, setNombre] = useState("");
   const [monto, setMonto] = useState("");
+  const [ejecutado, setEjecutado] = useState("0");
   const [descripcion, setDescripcion] = useState("");
   const [touched, setTouched] = useState(false);
 
@@ -74,11 +83,37 @@ function PresupuestoPage() {
     const e: Record<string, string> = {};
     if (nombre.trim().length < 4) e["nombre"] = "Mínimo 4 caracteres.";
     if (!monto || Number(monto) <= 0) e["monto"] = "Monto mayor a cero.";
+    if (ejecutado === "" || Number(ejecutado) < 0) e["ejecutado"] = "Ejecutado ≥ 0.";
+    if (Number(ejecutado) > Number(monto || 0)) e["ejecutado"] = "No puede superar el monto.";
     return e;
-  }, [nombre, monto]);
+  }, [nombre, monto, ejecutado]);
 
   const total = lista.reduce((a, p) => a + p.monto, 0);
   const ejec = lista.reduce((a, p) => a + p.ejecutado, 0);
+
+  const resetForm = () => {
+    setEditing(null);
+    setNombre("");
+    setMonto("");
+    setEjecutado("0");
+    setDescripcion("");
+    setTouched(false);
+  };
+
+  const abrirNueva = () => {
+    resetForm();
+    setOpen(true);
+  };
+
+  const abrirEditar = (p: Partida) => {
+    setEditing(p);
+    setNombre(p.nombre);
+    setMonto(String(p.monto));
+    setEjecutado(String(p.ejecutado));
+    setDescripcion(p.descripcion);
+    setTouched(false);
+    setOpen(true);
+  };
 
   const guardar = () => {
     if (Object.keys(errores).length) {
@@ -86,25 +121,27 @@ function PresupuestoPage() {
       toast.error("Revise los campos marcados.");
       return;
     }
-    void addMut
-      .mutateAsync({
-        proyectoId,
-        nombre: nombre.trim(),
-        monto: Number(monto),
-        descripcion: descripcion.trim(),
-      })
+    const payload = {
+      nombre: nombre.trim(),
+      monto: Number(monto),
+      ejecutado: Number(ejecutado) || 0,
+      descripcion: descripcion.trim(),
+    };
+    const mut = editing
+      ? updateMut.mutateAsync({ id: editing.id, ...payload })
+      : addMut.mutateAsync({ proyectoId, ...payload });
+    void mut
       .then(() => {
-        toast.success("Partida registrada.");
+        toast.success(editing ? "Partida actualizada." : "Partida registrada.");
         setOpen(false);
-        setNombre("");
-        setMonto("");
-        setDescripcion("");
-        setTouched(false);
+        resetForm();
       })
       .catch((err: Error) => toast.error(err.message));
   };
 
   if (!puedeVer("presupuesto")) return <AccesoDenegado modulo="Presupuesto" />;
+
+  const saving = addMut.isPending || updateMut.isPending;
 
   return (
     <div>
@@ -114,7 +151,7 @@ function PresupuestoPage() {
         description="Partidas presupuestarias por proyecto con seguimiento de ejecución y saldo."
         action={
           editable ? (
-            <Button onClick={() => setOpen(true)} className="gap-2">
+            <Button onClick={abrirNueva} className="gap-2" disabled={!proyectoId}>
               <Plus className="size-4" /> Nueva Partida
             </Button>
           ) : null
@@ -162,7 +199,7 @@ function PresupuestoPage() {
               <TableHead className="text-right">Ejecutado</TableHead>
               <TableHead className="text-right">Saldo</TableHead>
               <TableHead className="w-[110px]">Avance</TableHead>
-              {editable ? <TableHead /> : null}
+              {editable ? <TableHead className="w-[90px]" /> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -180,20 +217,30 @@ function PresupuestoPage() {
                 </TableCell>
                 {editable ? (
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-destructive"
-                      onClick={() => {
-                        void delMut.mutateAsync(p.id).then(
-                          () => toast.success("Partida eliminada."),
-                          (err: Error) => toast.error(err.message),
-                        );
-                        toast.success("🗑️ Partida eliminada correctamente.");
-                      }}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => abrirEditar(p)}
+                        aria-label="Editar partida"
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive"
+                        disabled={delMut.isPending}
+                        onClick={() => {
+                          void delMut.mutateAsync(p.id).then(
+                            () => toast.success("Partida eliminada."),
+                            (err: Error) => toast.error(err.message),
+                          );
+                        }}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 ) : null}
               </TableRow>
@@ -222,11 +269,17 @@ function PresupuestoPage() {
         </Table>
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(v) => {
+          setOpen(v);
+          if (!v) resetForm();
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="font-display text-2xl tracking-wide uppercase">
-              Nueva Partida
+              {editing ? "Editar Partida" : "Nueva Partida"}
             </DialogTitle>
             <DialogDescription>
               {proyecto ? `Proyecto ${proyecto.codigo}` : "Seleccione un proyecto"}
@@ -249,6 +302,15 @@ function PresupuestoPage() {
                 onBlur={() => setTouched(true)}
               />
             </Field>
+            <Field label="Ejecutado (Bs)" error={touched ? errores["ejecutado"] : undefined}>
+              <Input
+                type="number"
+                min={0}
+                value={ejecutado}
+                onChange={(e) => setEjecutado(e.target.value)}
+                onBlur={() => setTouched(true)}
+              />
+            </Field>
             <Field label="Descripción">
               <Textarea
                 value={descripcion}
@@ -261,7 +323,9 @@ function PresupuestoPage() {
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={guardar}>Guardar</Button>
+            <Button onClick={guardar} disabled={saving}>
+              Guardar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
