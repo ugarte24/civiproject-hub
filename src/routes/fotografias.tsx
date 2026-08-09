@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Plus, Trash2, Pencil, MapPin, Camera as CameraIcon, User, ImageIcon, X } from "lucide-react";
+import { Plus, Trash2, Pencil, Camera as CameraIcon, User, ImageIcon, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,7 +11,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -105,7 +104,6 @@ function FotografiasPage() {
     proyectoId: "",
     fecha: "",
     descripcion: "",
-    ubicacion: "",
     autor: "",
   });
 
@@ -211,7 +209,7 @@ function FotografiasPage() {
     setPreview("");
     setCompressedFile(null);
     setSizeInfo("");
-    setForm((f) => ({ ...f, fecha: "", descripcion: "", ubicacion: "" }));
+    setForm((f) => ({ ...f, fecha: "", descripcion: "" }));
   };
 
   const abrirNuevo = () => {
@@ -225,7 +223,6 @@ function FotografiasPage() {
       proyectoId: f.proyectoId,
       fecha: f.fecha,
       descripcion: f.descripcion,
-      ubicacion: f.ubicacion,
       autor: f.autor,
     });
     setCompressedFile(null);
@@ -248,7 +245,7 @@ function FotografiasPage() {
           proyectoId: form.proyectoId,
           fecha: form.fecha,
           descripcion: form.descripcion.trim(),
-          ubicacion: form.ubicacion.trim(),
+          ubicacion: editing.ubicacion || "",
           autor: form.autor || profile?.nombre || role,
         });
         toast.success("Fotografía actualizada.");
@@ -257,7 +254,7 @@ function FotografiasPage() {
           proyectoId: form.proyectoId,
           fecha: form.fecha,
           descripcion: form.descripcion.trim(),
-          ubicacion: form.ubicacion.trim(),
+          ubicacion: "",
           autor: form.autor || profile?.nombre || role,
           file: compressedFile!,
         });
@@ -304,9 +301,6 @@ function FotografiasPage() {
             <figcaption className="p-4">
               <p className="font-medium text-foreground">{f.descripcion}</p>
               <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1">
-                  <MapPin className="size-3.5" /> {f.ubicacion || "Sin ubicación"}
-                </span>
                 <span className="inline-flex items-center gap-1">
                   <User className="size-3.5" /> {f.autor}
                 </span>
@@ -381,7 +375,7 @@ function FotografiasPage() {
             </DialogTitle>
             <DialogDescription>
               {editing
-                ? "Actualice fecha, ubicación y descripción. La imagen se conserva."
+                ? "Actualice fecha y descripción. La imagen se conserva."
                 : "La imagen se comprime automáticamente antes de guardarla."}
             </DialogDescription>
           </DialogHeader>
@@ -407,13 +401,6 @@ function FotografiasPage() {
               <DateInput
                 value={form.fecha}
                 onChange={(v) => setForm((f) => ({ ...f, fecha: v }))}
-              />
-            </Field>
-            <Field label="Ubicación">
-              <Input
-                value={form.ubicacion}
-                onChange={(e) => setForm((f) => ({ ...f, ubicacion: e.target.value }))}
-                placeholder="Km 2+400 / Eje 3"
               />
             </Field>
             <Field label="Descripción" error={touched ? errores["descripcion"] : undefined} full>
