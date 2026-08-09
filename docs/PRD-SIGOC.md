@@ -5,7 +5,7 @@
 | **Producto** | SIGOC — Sistema de Gestión de Obras Civiles |
 | **Repositorio** | [ugarte24/civiproject-hub](https://github.com/ugarte24/civiproject-hub) |
 | **Versión PRD** | 3.0 |
-| **Versión app** | 1.3.0 (`package.json`) |
+| **Versión app** | 1.3.1 (`package.json`) |
 | **Fecha** | Agosto 2026 |
 | **Estado del producto** | SaaS + obra persistente en Supabase (Auth, suscripciones, proyectos y módulos de obra por empresa) |
 | **Mercado** | Bolivia (moneda BOB, entidades GAM / ABC / EPSAS) |

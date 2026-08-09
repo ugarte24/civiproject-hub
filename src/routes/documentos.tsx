@@ -43,6 +43,7 @@ import {
   useUpdateDocumento,
 } from "@/lib/obra/hooks";
 import { setFilePickingBusy } from "@/lib/ui-busy";
+import { compressAttachment, formatCompressInfo } from "@/lib/compress-attachment";
 
 export const Route = createFileRoute("/documentos")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -99,6 +100,7 @@ function DocumentosPage() {
   const [editing, setEditing] = useState<Documento | null>(null);
   const [touched, setTouched] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [fileSizeInfo, setFileSizeInfo] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pickingFileRef = useRef(false);
   const [form, setForm] = useState({
@@ -131,6 +133,7 @@ function DocumentosPage() {
     setEditing(null);
     setTouched(false);
     setFile(null);
+    setFileSizeInfo("");
     setForm((f) => ({ ...f, nombre: "", descripcion: "", categoria: "Planos" }));
   };
 
@@ -148,8 +151,47 @@ function DocumentosPage() {
       descripcion: d.descripcion,
     });
     setFile(null);
+    setFileSizeInfo("");
     setTouched(false);
     setOpen(true);
+  };
+
+  const pickFile = async (f: File | null) => {
+    setOpen(true);
+    if (!f) {
+      setFile(null);
+      setFileSizeInfo("");
+      window.setTimeout(() => {
+        pickingFileRef.current = false;
+        setFilePickingBusy(false);
+      }, 800);
+      return;
+    }
+
+    setFile(f);
+    setFileSizeInfo("Procesando archivo…");
+    if (!form.nombre.trim()) {
+      setForm((prev) => ({
+        ...prev,
+        nombre: f.name.replace(/\.[^.]+$/, ""),
+      }));
+    }
+
+    try {
+      const result = await compressAttachment(f);
+      if (result.previewUrl.startsWith("blob:")) URL.revokeObjectURL(result.previewUrl);
+      setFile(result.file);
+      setFileSizeInfo(formatCompressInfo(result));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "No se pudo procesar el archivo";
+      toast.error(msg);
+      setFileSizeInfo("");
+    } finally {
+      window.setTimeout(() => {
+        pickingFileRef.current = false;
+        setFilePickingBusy(false);
+      }, 800);
+    }
   };
 
   const guardar = () => {
@@ -388,19 +430,8 @@ function DocumentosPage() {
                   accept=".pdf,.doc,.docx,.xls,.xlsx,.dwg,.zip"
                   className="sr-only"
                   onChange={(e) => {
-                    const f = e.target.files?.[0] ?? null;
-                    setOpen(true);
-                    setFile(f);
-                    if (f && !form.nombre.trim()) {
-                      setForm((prev) => ({
-                        ...prev,
-                        nombre: f.name.replace(/\.[^.]+$/, ""),
-                      }));
-                    }
-                    window.setTimeout(() => {
-                      pickingFileRef.current = false;
-                      setFilePickingBusy(false);
-                    }, 800);
+                    void pickFile(e.target.files?.[0] ?? null);
+                    e.target.value = "";
                   }}
                 />
                 <div className="flex flex-wrap items-center gap-3">
@@ -421,8 +452,11 @@ function DocumentosPage() {
                     {file?.name || "Ningún archivo seleccionado"}
                   </span>
                 </div>
+                {fileSizeInfo ? (
+                  <p className="mt-1 text-xs text-muted-foreground">{fileSizeInfo}</p>
+                ) : null}
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Formatos: PDF, Word, Excel, DWG o ZIP
+                  Formatos: PDF, Word, Excel, DWG o ZIP (PDF e imágenes se comprimen)
                 </p>
               </Field>
             ) : null}

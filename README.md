@@ -335,8 +335,6 @@ Facturas
 
 Pagos
 
-Retenciones
-
 Planillas
 
 Nueva Factura

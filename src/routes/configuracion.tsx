@@ -23,6 +23,8 @@ import {
   useSaveConfigEmpresa,
 } from "@/lib/obra/hooks";
 import { setFilePickingBusy } from "@/lib/ui-busy";
+import { compressImage } from "@/lib/compress-image";
+import { formatCompressInfo } from "@/lib/compress-attachment";
 
 export const Route = createFileRoute("/configuracion")({
   head: () => ({
@@ -86,6 +88,7 @@ function ConfiguracionPage() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoNombre, setLogoNombre] = useState("");
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoSizeInfo, setLogoSizeInfo] = useState("");
   const [clearLogo, setClearLogo] = useState(false);
   const [backingUp, setBackingUp] = useState(false);
 
@@ -109,6 +112,7 @@ function ConfiguracionPage() {
     setClearLogo(false);
     setLogoFile(null);
     setLogoNombre("");
+    setLogoSizeInfo("");
   }, [config]);
 
   useEffect(() => {
@@ -134,7 +138,32 @@ function ConfiguracionPage() {
     };
   }, [logoFile, clearLogo, config?.logo_path]);
 
-  if (!puedeVer("configuracion")) return <AccesoDenegado modulo="Configuración" />;
+  const pickLogo = async (file: File | null) => {
+    if (!file) {
+      setLogoFile(null);
+      setLogoNombre("");
+      setLogoSizeInfo("");
+      setFilePickingBusy(false);
+      return;
+    }
+    setClearLogo(false);
+    setLogoFile(file);
+    setLogoNombre(file.name);
+    setLogoSizeInfo("Procesando imagen…");
+    try {
+      const result = await compressImage(file, { maxSide: 1200, quality: 0.8 });
+      if (result.previewUrl.startsWith("blob:")) URL.revokeObjectURL(result.previewUrl);
+      setLogoFile(result.file);
+      setLogoNombre(result.file.name);
+      setLogoSizeInfo(formatCompressInfo(result));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "No se pudo comprimir el logo";
+      toast.error(msg);
+      setLogoSizeInfo("");
+    } finally {
+      window.setTimeout(() => setFilePickingBusy(false), 800);
+    }
+  };
 
   const guardar = () => {
     const costo = Number(empresa.costo_indirecto_pct);
@@ -179,6 +208,8 @@ function ConfiguracionPage() {
       .catch((err: Error) => toast.error(err.message))
       .finally(() => setBackingUp(false));
   };
+
+  if (!puedeVer("configuracion")) return <AccesoDenegado modulo="Configuración" />;
 
   return (
     <div>
@@ -238,12 +269,8 @@ function ConfiguracionPage() {
                       accept="image/*"
                       className="hidden"
                       onChange={(e) => {
-                        const file = e.target.files?.[0] ?? null;
-                        setLogoFile(file);
-                        setLogoNombre(file?.name ?? "");
-                        setClearLogo(false);
+                        void pickLogo(e.target.files?.[0] ?? null);
                         e.target.value = "";
-                        window.setTimeout(() => setFilePickingBusy(false), 800);
                       }}
                     />
                   </label>
@@ -261,12 +288,8 @@ function ConfiguracionPage() {
                       capture="environment"
                       className="hidden"
                       onChange={(e) => {
-                        const file = e.target.files?.[0] ?? null;
-                        setLogoFile(file);
-                        setLogoNombre(file?.name ?? "");
-                        setClearLogo(false);
+                        void pickLogo(e.target.files?.[0] ?? null);
                         e.target.value = "";
-                        window.setTimeout(() => setFilePickingBusy(false), 800);
                       }}
                     />
                   </label>
@@ -280,6 +303,7 @@ function ConfiguracionPage() {
                     onClick={() => {
                       setLogoFile(null);
                       setLogoNombre("");
+                      setLogoSizeInfo("");
                       setClearLogo(true);
                     }}
                   >
@@ -295,6 +319,9 @@ function ConfiguracionPage() {
                         : "Ningún archivo seleccionado")}
                 </span>
               </div>
+              {logoSizeInfo ? (
+                <p className="text-xs text-muted-foreground">{logoSizeInfo}</p>
+              ) : null}
               <div>
                 <p className="label-kicker">Vista previa</p>
                 <div className="mt-2 flex min-h-[8rem] max-h-[40vh] items-center justify-center overflow-auto rounded-md border border-dashed border-border bg-muted/50 p-2">

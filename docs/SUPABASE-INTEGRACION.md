@@ -112,7 +112,7 @@ create type public.app_role as enum (
 create type public.project_status as enum ('Activo', 'Suspendido', 'Finalizado');
 
 create type public.movimiento_tipo as enum (
-  'Ingreso', 'Egreso', 'Factura', 'Pago', 'Retencion', 'Planilla'
+  'Ingreso', 'Egreso', 'Factura', 'Pago', 'Planilla'
 );
 
 create type public.doc_categoria as enum (

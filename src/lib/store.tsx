@@ -49,7 +49,7 @@ export interface Partida {
   descripcion: string;
 }
 
-export type MovimientoTipo = "Ingreso" | "Egreso" | "Factura" | "Pago" | "Retencion" | "Planilla";
+export type MovimientoTipo = "Ingreso" | "Egreso" | "Factura" | "Pago" | "Planilla";
 
 export interface Movimiento {
   id: string;

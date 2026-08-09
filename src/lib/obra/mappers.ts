@@ -76,9 +76,11 @@ export function mapMovimiento(r: {
   observacion: string | null;
   adjunto_path?: string | null;
 }): Movimiento {
+  // Retencion quedó fuera del módulo; registros viejos se muestran como Egreso.
+  const tipo = (r.tipo as string) === "Retencion" ? "Egreso" : r.tipo;
   return {
     id: r.id,
-    tipo: r.tipo,
+    tipo,
     proyectoId: r.proyecto_id,
     proveedor: r.proveedor,
     nit: r.nit ?? "",

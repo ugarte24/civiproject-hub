@@ -33,6 +33,9 @@ import { PageHeader, AccesoDenegado } from "@/components/AppShell";
 import { Field } from "@/components/Field";
 import { DateInput } from "@/components/DateInput";
 import { usePermisos, money, fecha, type Movimiento, type MovimientoTipo } from "@/lib/store";
+import { compressImage, formatBytes } from "@/lib/compress-image";
+import { compressPdf } from "@/lib/compress-pdf";
+import { setFilePickingBusy } from "@/lib/ui-busy";
 import {
   signedUrl,
   useAddMovimiento,
@@ -41,7 +44,6 @@ import {
   useProyectos,
   useUpdateMovimiento,
 } from "@/lib/obra/hooks";
-import { setFilePickingBusy } from "@/lib/ui-busy";
 
 export const Route = createFileRoute("/contabilidad")({
   head: () => ({
@@ -50,7 +52,7 @@ export const Route = createFileRoute("/contabilidad")({
       {
         name: "description",
         content:
-          "Registro de ingresos, egresos, facturas, pagos, retenciones y planillas de los proyectos civiles.",
+          "Registro de ingresos, egresos, facturas, pagos y planillas de los proyectos civiles.",
       },
       { property: "og:title", content: "Contabilidad — SIGOC" },
       {
@@ -62,7 +64,7 @@ export const Route = createFileRoute("/contabilidad")({
   component: ContabilidadPage,
 });
 
-const tabs: MovimientoTipo[] = ["Ingreso", "Egreso", "Factura", "Pago", "Retencion", "Planilla"];
+const tabs: MovimientoTipo[] = ["Ingreso", "Egreso", "Factura", "Pago", "Planilla"];
 
 function ContabilidadPage() {
   const { data: projects = [] } = useProyectos();
@@ -77,8 +79,10 @@ function ContabilidadPage() {
   const [editing, setEditing] = useState<Movimiento | null>(null);
   const [touched, setTouched] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfSizeInfo, setPdfSizeInfo] = useState("");
   const [imgFile, setImgFile] = useState<File | null>(null);
   const [imgPreview, setImgPreview] = useState("");
+  const [imgSizeInfo, setImgSizeInfo] = useState("");
   const pickingFileRef = useRef(false);
   const [form, setForm] = useState({
     proveedor: "",
@@ -114,18 +118,59 @@ function ContabilidadPage() {
     });
   };
 
-  const pickImage = (file: File | null) => {
+  const pickImage = async (file: File | null) => {
     setOpen(true);
+    if (!file) {
+      setImgPreview((prev) => {
+        if (prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+        return "";
+      });
+      setImgFile(null);
+      setImgSizeInfo("");
+      window.setTimeout(() => {
+        pickingFileRef.current = false;
+        setFilePickingBusy(false);
+      }, 800);
+      return;
+    }
+
+    setPdfFile(null);
+    setPdfSizeInfo("");
+    // Vista previa inmediata mientras se comprime
     setImgPreview((prev) => {
       if (prev.startsWith("blob:")) URL.revokeObjectURL(prev);
-      return file ? URL.createObjectURL(file) : "";
+      return URL.createObjectURL(file);
     });
     setImgFile(file);
-    if (file) setPdfFile(null);
-    window.setTimeout(() => {
-      pickingFileRef.current = false;
-      setFilePickingBusy(false);
-    }, 800);
+    setImgSizeInfo("Procesando imagen…");
+
+    try {
+      const result = await compressImage(file);
+      setImgPreview((prev) => {
+        if (prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+        return result.previewUrl;
+      });
+      setImgFile(result.file);
+      if (result.savedRatio > 0.01) {
+        const pct = Math.round(result.savedRatio * 100);
+        setImgSizeInfo(
+          `${formatBytes(result.originalBytes)} → ${formatBytes(result.compressedBytes)} (−${pct}%)`,
+        );
+      } else {
+        setImgSizeInfo(
+          `${formatBytes(result.originalBytes)} (ya era liviana; se mantiene el original)`,
+        );
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "No se pudo comprimir";
+      toast.error(msg);
+      setImgSizeInfo("");
+    } finally {
+      window.setTimeout(() => {
+        pickingFileRef.current = false;
+        setFilePickingBusy(false);
+      }, 800);
+    }
   };
 
   const beginPickFile = () => {
@@ -133,11 +178,57 @@ function ContabilidadPage() {
     setFilePickingBusy(true);
   };
 
+  const pickPdf = async (file: File | null) => {
+    setOpen(true);
+    if (!file) {
+      setPdfFile(null);
+      setPdfSizeInfo("");
+      window.setTimeout(() => {
+        pickingFileRef.current = false;
+        setFilePickingBusy(false);
+      }, 800);
+      return;
+    }
+
+    setImgFile(null);
+    clearImgPreview();
+    setImgSizeInfo("");
+    setPdfFile(file);
+    setPdfSizeInfo("Procesando PDF…");
+
+    try {
+      const result = await compressPdf(file);
+      setPdfFile(result.file);
+      if (result.previewUrl.startsWith("blob:")) URL.revokeObjectURL(result.previewUrl);
+      if (result.savedRatio > 0.01) {
+        const pct = Math.round(result.savedRatio * 100);
+        setPdfSizeInfo(
+          `${formatBytes(result.originalBytes)} → ${formatBytes(result.compressedBytes)} (−${pct}%)`,
+        );
+      } else {
+        setPdfSizeInfo(
+          `${formatBytes(result.originalBytes)} (ya era liviano; se mantiene el original)`,
+        );
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "No se pudo comprimir el PDF";
+      toast.error(msg);
+      setPdfSizeInfo("");
+    } finally {
+      window.setTimeout(() => {
+        pickingFileRef.current = false;
+        setFilePickingBusy(false);
+      }, 800);
+    }
+  };
+
   const resetForm = () => {
     setEditing(null);
     setPdfFile(null);
+    setPdfSizeInfo("");
     setImgFile(null);
     clearImgPreview();
+    setImgSizeInfo("");
     setTouched(false);
     setForm((f) => ({
       ...f,
@@ -170,8 +261,10 @@ function ContabilidadPage() {
       tipo: m.tipo,
     });
     setPdfFile(null);
+    setPdfSizeInfo("");
     setImgFile(null);
     clearImgPreview();
+    setImgSizeInfo("");
     setTouched(false);
     setOpen(true);
   };
@@ -262,7 +355,7 @@ function ContabilidadPage() {
             <TabsList className="inline-flex h-auto min-w-full w-max flex-nowrap justify-start gap-1">
               {tabs.map((t) => (
                 <TabsTrigger key={t} value={t} className="shrink-0">
-                  {t === "Retencion" ? "Retenciones" : `${t}s`}
+                  {`${t}s`}
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -395,6 +488,20 @@ function ContabilidadPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Proyecto" full error={touched ? errores["proyectoId"] : undefined}>
+              <Select value={form.proyectoId} onValueChange={(v) => set("proyectoId", v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccione un proyecto" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.codigo} — {p.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
             <Field label="Tipo" full>
               <Select value={form.tipo} onValueChange={(v) => set("tipo", v)}>
                 <SelectTrigger>
@@ -403,7 +510,7 @@ function ContabilidadPage() {
                 <SelectContent>
                   {tabs.map((t) => (
                     <SelectItem key={t} value={t}>
-                      {t === "Retencion" ? "Retención" : t}
+                      {t}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -421,22 +528,8 @@ function ContabilidadPage() {
             <Field label="Monto (Bs)" error={touched ? errores["monto"] : undefined}>
               <Input type="number" value={form.monto} onChange={(e) => set("monto", e.target.value)} />
             </Field>
-            <Field label="Fecha" error={touched ? errores["fecha"] : undefined}>
+            <Field label="Fecha" error={touched ? errores["fecha"] : undefined} full>
               <DateInput value={form.fecha} onChange={(v) => set("fecha", v)} />
-            </Field>
-            <Field label="Proyecto" full error={touched ? errores["proyectoId"] : undefined}>
-              <Select value={form.proyectoId} onValueChange={(v) => set("proyectoId", v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione un proyecto" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.codigo} — {p.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </Field>
             <Field label="Adjuntar PDF">
               <label
@@ -454,17 +547,14 @@ function ContabilidadPage() {
                   accept=".pdf,application/pdf"
                   className="hidden"
                   onChange={(e) => {
-                    const f = e.target.files?.[0] ?? null;
-                    setPdfFile(f);
-                    if (f) pickImage(null);
-                    else {
-                      pickingFileRef.current = false;
-                      setFilePickingBusy(false);
-                    }
+                    void pickPdf(e.target.files?.[0] ?? null);
                     e.target.value = "";
                   }}
                 />
               </label>
+              {pdfSizeInfo ? (
+                <p className="mt-1 text-xs text-muted-foreground">{pdfSizeInfo}</p>
+              ) : null}
             </Field>
             <Field label="Adjuntar imagen o foto" full>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -481,7 +571,7 @@ function ContabilidadPage() {
                     accept="image/*"
                     className="hidden"
                     onChange={(e) => {
-                      pickImage(e.target.files?.[0] ?? null);
+                      void pickImage(e.target.files?.[0] ?? null);
                       e.target.value = "";
                     }}
                   />
@@ -500,7 +590,7 @@ function ContabilidadPage() {
                     capture="environment"
                     className="hidden"
                     onChange={(e) => {
-                      pickImage(e.target.files?.[0] ?? null);
+                      void pickImage(e.target.files?.[0] ?? null);
                       e.target.value = "";
                     }}
                   />
@@ -509,6 +599,9 @@ function ContabilidadPage() {
               <p className="mt-1.5 truncate text-xs text-muted-foreground">
                 {imgFile?.name || "Ningún archivo seleccionado"}
               </p>
+              {imgSizeInfo ? (
+                <p className="mt-1 text-xs text-muted-foreground">{imgSizeInfo}</p>
+              ) : null}
               <div className="relative mt-2 flex min-h-[10rem] max-h-[40vh] items-center justify-center overflow-auto rounded-md border border-dashed border-border bg-muted/50 p-2">
                 {imgPreview ? (
                   <>
@@ -522,7 +615,7 @@ function ContabilidadPage() {
                       variant="secondary"
                       size="icon"
                       className="absolute top-2 right-2 size-8 rounded-full border border-border bg-background/90 text-destructive shadow-sm hover:bg-background hover:text-destructive"
-                      onClick={() => pickImage(null)}
+                      onClick={() => void pickImage(null)}
                       aria-label="Quitar foto"
                     >
                       <X className="size-4" />
