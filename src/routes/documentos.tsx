@@ -361,6 +361,10 @@ function DocumentosPage() {
       >
         <DialogContent
           className="sm:max-w-lg"
+          onCloseClick={() => {
+            pickingFileRef.current = false;
+            setFilePickingBusy(false);
+          }}
           onPointerDownOutside={(e) => {
             if (pickingFileRef.current) e.preventDefault();
           }}

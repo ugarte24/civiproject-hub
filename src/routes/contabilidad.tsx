@@ -74,7 +74,7 @@ function ContabilidadPage() {
   const delMut = useDeleteMovimiento();
   const { puedeVer, puedeEditar } = usePermisos();
   const editable = puedeEditar("contabilidad");
-  const [tab, setTab] = useState<MovimientoTipo>("Factura");
+  const [tab, setTab] = useState<MovimientoTipo>("Ingreso");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Movimiento | null>(null);
   const [touched, setTouched] = useState(false);
@@ -92,7 +92,7 @@ function ContabilidadPage() {
     fecha: "",
     observacion: "",
     proyectoId: "",
-    tipo: "Factura" as MovimientoTipo,
+    tipo: "Ingreso" as MovimientoTipo,
   });
 
   useEffect(() => {
@@ -100,6 +100,27 @@ function ContabilidadPage() {
       setForm((f) => ({ ...f, proyectoId: projects[0]!.id }));
     }
   }, [projects, form.proyectoId]);
+
+  // Si cancelan cámara/galería sin onChange, el candado queda pegado y el X no cerraba.
+  useEffect(() => {
+    const onReturn = () => {
+      window.setTimeout(() => {
+        if (!pickingFileRef.current) return;
+        if (pdfSizeInfo.startsWith("Procesando") || imgSizeInfo.startsWith("Procesando")) return;
+        pickingFileRef.current = false;
+        setFilePickingBusy(false);
+      }, 900);
+    };
+    window.addEventListener("focus", onReturn);
+    const onVis = () => {
+      if (document.visibilityState === "visible") onReturn();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.removeEventListener("focus", onReturn);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [pdfSizeInfo, imgSizeInfo]);
 
   const errores: Record<string, string> = {};
   if (form.proveedor.trim().length < 3) errores["proveedor"] = "Mínimo 3 caracteres.";
@@ -294,9 +315,13 @@ function ContabilidadPage() {
           ...(editing.adjuntoPath ? { adjuntoPath: editing.adjuntoPath } : {}),
         })
       : addMut.mutateAsync(payload);
+    const tipoGuardado = form.tipo;
     void mut
       .then(() => {
-        toast.success(editing ? "Movimiento actualizado." : `${form.tipo} registrado correctamente.`);
+        toast.success(
+          editing ? "Movimiento actualizado." : `${tipoGuardado} registrado correctamente.`,
+        );
+        setTab(tipoGuardado);
         setOpen(false);
         resetForm();
       })
@@ -466,7 +491,11 @@ function ContabilidadPage() {
         }}
       >
         <DialogContent
-          className="max-h-[90vh] overflow-y-auto sm:max-w-xl"
+          className="sm:max-w-xl"
+          onCloseClick={() => {
+            pickingFileRef.current = false;
+            setFilePickingBusy(false);
+          }}
           onPointerDownOutside={(e) => {
             if (pickingFileRef.current) e.preventDefault();
           }}

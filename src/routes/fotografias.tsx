@@ -176,6 +176,27 @@ function FotografiasPage() {
     setFilePickingBusy(true);
   };
 
+  // Cancelar cámara/galería sin onChange dejaba el X bloqueado en móvil.
+  useEffect(() => {
+    const onReturn = () => {
+      window.setTimeout(() => {
+        if (!pickingFileRef.current) return;
+        if (sizeInfo.startsWith("Procesando")) return;
+        pickingFileRef.current = false;
+        setFilePickingBusy(false);
+      }, 900);
+    };
+    window.addEventListener("focus", onReturn);
+    const onVis = () => {
+      if (document.visibilityState === "visible") onReturn();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.removeEventListener("focus", onReturn);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [sizeInfo]);
+
   const quitarFoto = () => {
     if (preview.startsWith("blob:")) URL.revokeObjectURL(preview);
     setPreview("");
@@ -339,7 +360,11 @@ function FotografiasPage() {
         }}
       >
         <DialogContent
-          className="max-h-[90vh] overflow-y-auto sm:max-w-lg"
+          className="sm:max-w-lg"
+          onCloseClick={() => {
+            pickingFileRef.current = false;
+            setFilePickingBusy(false);
+          }}
           onPointerDownOutside={(e) => {
             if (pickingFileRef.current) e.preventDefault();
           }}
