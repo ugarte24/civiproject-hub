@@ -473,6 +473,7 @@ export function useAddDocumento() {
 
 export function useUpdateDocumento() {
   const qc = useQueryClient();
+  const { profile } = useAuth();
   return useMutation({
     mutationFn: async (d: {
       id: string;
@@ -480,7 +481,29 @@ export function useUpdateDocumento() {
       categoria: DocCategoria;
       proyectoId: string;
       descripcion: string;
+      archivo?: string;
+      file?: File | null;
     }) => {
+      let storage_path = d.archivo;
+      let peso: string | undefined;
+      if (d.file) {
+        if (!profile?.empresa_id) throw new Error("Sin empresa asignada");
+        const ext = d.file.name.split(".").pop() || "bin";
+        const path = `${profile.empresa_id}/${d.proyectoId}/${crypto.randomUUID()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("documentos").upload(path, d.file, {
+          upsert: false,
+          contentType: d.file.type || "application/octet-stream",
+        });
+        throwIf(upErr);
+        if (d.archivo) {
+          await supabase.storage.from("documentos").remove([d.archivo]);
+        }
+        storage_path = path;
+        peso =
+          d.file.size < 1024 * 1024
+            ? `${(d.file.size / 1024).toFixed(1)} KB`
+            : `${(d.file.size / (1024 * 1024)).toFixed(2)} MB`;
+      }
       const { error } = await supabase
         .from("documentos")
         .update({
@@ -488,6 +511,8 @@ export function useUpdateDocumento() {
           categoria: d.categoria,
           proyecto_id: d.proyectoId,
           descripcion: d.descripcion,
+          ...(storage_path ? { storage_path } : {}),
+          ...(peso ? { peso } : {}),
         })
         .eq("id", d.id);
       throwIf(error);

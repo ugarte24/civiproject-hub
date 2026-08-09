@@ -11,6 +11,7 @@ import {
   PenTool,
   File,
   Paperclip,
+  X,
 } from "lucide-react";
 import {
   Dialog,
@@ -101,6 +102,8 @@ function DocumentosPage() {
   const [touched, setTouched] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [fileSizeInfo, setFileSizeInfo] = useState("");
+  const [localPreviewUrl, setLocalPreviewUrl] = useState("");
+  const [quitarArchivo, setQuitarArchivo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pickingFileRef = useRef(false);
   const [form, setForm] = useState({
@@ -118,10 +121,13 @@ function DocumentosPage() {
     setForm((f) => ({ ...f, proyectoId: f.proyectoId || pref }));
   }, [projects, search.proyecto]);
 
+  const mostrarArchivo = Boolean(file || (editing && !quitarArchivo));
   const errores: Record<string, string> = {};
   if (form.nombre.trim().length < 4) errores["nombre"] = "Mínimo 4 caracteres.";
   if (!form.proyectoId) errores["proyectoId"] = "Seleccione un proyecto.";
-  if (!editing && !file) errores["archivo"] = "Seleccione un archivo (PDF, Word, Excel, DWG o ZIP).";
+  if (!mostrarArchivo) {
+    errores["archivo"] = "Seleccione un archivo (PDF, Word, Excel, DWG o ZIP).";
+  }
 
   const lista = documentos.filter(
     (d) =>
@@ -129,11 +135,20 @@ function DocumentosPage() {
       (!search.proyecto || d.proyectoId === search.proyecto),
   );
 
+  const clearLocalPreview = () => {
+    setLocalPreviewUrl((prev) => {
+      if (prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return "";
+    });
+  };
+
   const resetForm = () => {
     setEditing(null);
     setTouched(false);
     setFile(null);
     setFileSizeInfo("");
+    setQuitarArchivo(false);
+    clearLocalPreview();
     setForm((f) => ({ ...f, nombre: "", descripcion: "", categoria: "Planos" }));
   };
 
@@ -152,8 +167,17 @@ function DocumentosPage() {
     });
     setFile(null);
     setFileSizeInfo("");
+    setQuitarArchivo(false);
+    clearLocalPreview();
     setTouched(false);
     setOpen(true);
+  };
+
+  const quitarArchivoActual = () => {
+    setFile(null);
+    setFileSizeInfo("");
+    clearLocalPreview();
+    if (editing) setQuitarArchivo(true);
   };
 
   const pickFile = async (f: File | null) => {
@@ -161,6 +185,7 @@ function DocumentosPage() {
     if (!f) {
       setFile(null);
       setFileSizeInfo("");
+      clearLocalPreview();
       window.setTimeout(() => {
         pickingFileRef.current = false;
         setFilePickingBusy(false);
@@ -170,6 +195,10 @@ function DocumentosPage() {
 
     setFile(f);
     setFileSizeInfo("Procesando archivo…");
+    setLocalPreviewUrl((prev) => {
+      if (prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(f);
+    });
     if (!form.nombre.trim()) {
       setForm((prev) => ({
         ...prev,
@@ -181,6 +210,10 @@ function DocumentosPage() {
       const result = await compressAttachment(f);
       if (result.previewUrl.startsWith("blob:")) URL.revokeObjectURL(result.previewUrl);
       setFile(result.file);
+      setLocalPreviewUrl((prev) => {
+        if (prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+        return URL.createObjectURL(result.file);
+      });
       setFileSizeInfo(formatCompressInfo(result));
     } catch (err) {
       const msg = err instanceof Error ? err.message : "No se pudo procesar el archivo";
@@ -208,9 +241,11 @@ function DocumentosPage() {
           categoria: form.categoria,
           proyectoId: form.proyectoId,
           descripcion: form.descripcion.trim(),
+          archivo: editing.archivo,
+          ...(file ? { file } : {}),
         })
         .then(() => {
-          toast.success("Documento actualizado.");
+          toast.success(file ? "Documento y archivo actualizados." : "Documento actualizado.");
           setOpen(false);
           resetForm();
         })
@@ -240,6 +275,20 @@ function DocumentosPage() {
   };
 
   if (!puedeVer("documentos")) return <AccesoDenegado modulo="Documentos" />;
+
+  const editingFileName = editing ? editing.archivo.split("/").pop() || editing.nombre : "";
+  const displayFileName = file?.name || editingFileName;
+  const displayPeso = file
+    ? fileSizeInfo || `${(file.size / 1024).toFixed(1)} KB`
+    : editing?.peso || "";
+
+  const abrirArchivoForm = () => {
+    if (file && localPreviewUrl) {
+      window.open(localPreviewUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (editing && !quitarArchivo) abrirDocumento(editing.archivo);
+  };
 
   return (
     <div>
@@ -330,6 +379,7 @@ function DocumentosPage() {
                             .then(() => toast.success("Documento eliminado."))
                             .catch((err: Error) => toast.error(err.message));
                         }}
+                        aria-label="Eliminar documento"
                       >
                         <Trash2 className="size-4" />
                       </Button>
@@ -386,6 +436,23 @@ function DocumentosPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Proyecto" error={touched ? errores["proyectoId"] : undefined} full>
+              <Select
+                value={form.proyectoId}
+                onValueChange={(v) => setForm((f) => ({ ...f, proyectoId: v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccione" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.codigo} — {p.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
             <Field label="Documento" error={touched ? errores["nombre"] : undefined} full>
               <Input
                 value={form.nombre}
@@ -409,35 +476,42 @@ function DocumentosPage() {
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Proyecto" error={touched ? errores["proyectoId"] : undefined}>
-              <Select
-                value={form.proyectoId}
-                onValueChange={(v) => setForm((f) => ({ ...f, proyectoId: v }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.codigo}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            {!editing ? (
-              <Field label="Archivo" error={touched ? errores["archivo"] : undefined} full>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.dwg,.zip"
-                  className="sr-only"
-                  onChange={(e) => {
-                    void pickFile(e.target.files?.[0] ?? null);
-                    e.target.value = "";
-                  }}
-                />
+            <Field label="Archivo" error={touched ? errores["archivo"] : undefined} full>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.dwg,.zip,image/*"
+                className="sr-only"
+                onChange={(e) => {
+                  void pickFile(e.target.files?.[0] ?? null);
+                  e.target.value = "";
+                }}
+              />
+              {mostrarArchivo ? (
+                <div className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 truncate text-left text-sm font-medium text-primary underline-offset-2 hover:underline"
+                    onClick={abrirArchivoForm}
+                    title="Abrir archivo"
+                  >
+                    {displayFileName}
+                  </button>
+                  {displayPeso ? (
+                    <span className="shrink-0 text-xs text-muted-foreground">{displayPeso}</span>
+                  ) : null}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    aria-label="Quitar archivo"
+                    onClick={quitarArchivoActual}
+                  >
+                    <X className="size-4" strokeWidth={2.5} />
+                  </Button>
+                </div>
+              ) : (
                 <div className="flex flex-wrap items-center gap-3">
                   <Button
                     type="button"
@@ -452,18 +526,18 @@ function DocumentosPage() {
                     <Paperclip className="size-4" />
                     Seleccionar archivo
                   </Button>
-                  <span className="text-sm text-muted-foreground">
-                    {file?.name || "Ningún archivo seleccionado"}
-                  </span>
+                  <span className="text-sm text-muted-foreground">Ningún archivo seleccionado</span>
                 </div>
-                {fileSizeInfo ? (
-                  <p className="mt-1 text-xs text-muted-foreground">{fileSizeInfo}</p>
-                ) : null}
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Formatos: PDF, Word, Excel, DWG o ZIP (PDF e imágenes se comprimen)
-                </p>
-              </Field>
-            ) : null}
+              )}
+              {fileSizeInfo && file ? (
+                <p className="mt-1 text-xs text-muted-foreground">{fileSizeInfo}</p>
+              ) : null}
+              <p className="mt-1 text-xs text-muted-foreground">
+                {editing
+                  ? "Pulse el nombre para abrir. Use la X para quitarlo y cargar otro."
+                  : "Formatos: PDF, Word, Excel, DWG o ZIP (PDF e imágenes se comprimen)"}
+              </p>
+            </Field>
             <Field label="Descripción" full>
               <Textarea
                 rows={3}
