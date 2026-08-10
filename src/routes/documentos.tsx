@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { createFileRoute, useSearch } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
   Plus,
@@ -89,6 +89,7 @@ const iconoPorArchivo = (nombre: string) => {
 
 function DocumentosPage() {
   const search = useSearch({ from: "/documentos" });
+  const navigate = useNavigate({ from: "/documentos" });
   const { data: projects = [] } = useProyectos();
   const { data: documentos = [] } = useDocumentos();
   const addMut = useAddDocumento();
@@ -134,6 +135,7 @@ function DocumentosPage() {
       (cat === "todas" || d.categoria === cat) &&
       (!search.proyecto || d.proyectoId === search.proyecto),
   );
+  const filtroProyecto = search.proyecto ?? "todos";
 
   const clearLocalPreview = () => {
     setLocalPreviewUrl((prev) => {
@@ -305,6 +307,30 @@ function DocumentosPage() {
         }
       />
 
+      <div className="mb-4 max-w-xl">
+        <Select
+          value={filtroProyecto}
+          onValueChange={(v) => {
+            void navigate({
+              search: { proyecto: v === "todos" ? undefined : v },
+              replace: true,
+            });
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Filtrar por proyecto" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos los proyectos</SelectItem>
+            {projects.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.codigo} — {p.nombre}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="mb-4 flex flex-wrap gap-2">
         <Button
           variant={cat === "todas" ? "default" : "outline"}
@@ -393,7 +419,9 @@ function DocumentosPage() {
       </div>
       {!lista.length ? (
         <p className="panel p-10 text-center text-sm text-muted-foreground">
-          No hay documentos en esta categoría.
+          {search.proyecto
+            ? "No hay documentos para este proyecto en la categoría seleccionada."
+            : "No hay documentos en esta categoría."}
         </p>
       ) : null}
 

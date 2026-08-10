@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Plus, Paperclip, ImageIcon, Camera, Trash2, ExternalLink, Pencil, X } from "lucide-react";
 import {
@@ -46,6 +46,9 @@ import {
 } from "@/lib/obra/hooks";
 
 export const Route = createFileRoute("/contabilidad")({
+  validateSearch: (s: Record<string, unknown>) => ({
+    proyecto: typeof s["proyecto"] === "string" ? s["proyecto"] : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Contabilidad — SIGOC" },
@@ -67,6 +70,8 @@ export const Route = createFileRoute("/contabilidad")({
 const tabs: MovimientoTipo[] = ["Ingreso", "Egreso", "Factura", "Pago", "Planilla"];
 
 function ContabilidadPage() {
+  const search = useSearch({ from: "/contabilidad" });
+  const navigate = useNavigate({ from: "/contabilidad" });
   const { data: projects = [] } = useProyectos();
   const { data: movimientos = [] } = useMovimientos();
   const addMut = useAddMovimiento();
@@ -96,10 +101,14 @@ function ContabilidadPage() {
   });
 
   useEffect(() => {
-    if (!form.proyectoId && projects[0]?.id) {
-      setForm((f) => ({ ...f, proyectoId: projects[0]!.id }));
+    const pref =
+      search.proyecto && projects.some((p) => p.id === search.proyecto)
+        ? search.proyecto
+        : projects[0]?.id ?? "";
+    if (!form.proyectoId && pref) {
+      setForm((f) => ({ ...f, proyectoId: pref }));
     }
-  }, [projects, form.proyectoId]);
+  }, [projects, form.proyectoId, search.proyecto]);
 
   // Si cancelan cámara/galería sin onChange, el candado queda pegado y el X no cerraba.
   useEffect(() => {
@@ -339,10 +348,14 @@ function ContabilidadPage() {
 
   if (!puedeVer("contabilidad")) return <AccesoDenegado modulo="Contabilidad" />;
 
-  const ingresos = movimientos.filter((m) => m.tipo === "Ingreso").reduce((a, m) => a + m.monto, 0);
-  const egresos = movimientos
+  const filtrados = movimientos.filter(
+    (m) => !search.proyecto || m.proyectoId === search.proyecto,
+  );
+  const ingresos = filtrados.filter((m) => m.tipo === "Ingreso").reduce((a, m) => a + m.monto, 0);
+  const egresos = filtrados
     .filter((m) => ["Egreso", "Pago", "Factura"].includes(m.tipo))
     .reduce((a, m) => a + m.monto, 0);
+  const filtroProyecto = search.proyecto ?? "todos";
 
   return (
     <div>
@@ -358,6 +371,30 @@ function ContabilidadPage() {
           ) : null
         }
       />
+
+      <div className="mb-4 max-w-xl">
+        <Select
+          value={filtroProyecto}
+          onValueChange={(v) => {
+            void navigate({
+              search: { proyecto: v === "todos" ? undefined : v },
+              replace: true,
+            });
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Filtrar por proyecto" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos los proyectos</SelectItem>
+            {projects.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.codigo} — {p.nombre}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="panel p-5">
@@ -386,53 +423,67 @@ function ContabilidadPage() {
             </TabsList>
           </div>
           {tabs.map((t) => {
-            const lista = movimientos.filter((m) => m.tipo === t);
+            const lista = filtrados.filter((m) => m.tipo === t);
             return (
-              <TabsContent key={t} value={t} className="mt-4 overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead>Número</TableHead>
-                      <TableHead>Proveedor / concepto</TableHead>
-                      <TableHead>NIT</TableHead>
-                      <TableHead>Proyecto</TableHead>
-                      <TableHead>Fecha</TableHead>
-                      <TableHead className="text-right">Monto</TableHead>
-                      <TableHead>Observación</TableHead>
-                      <TableHead>Adjunto</TableHead>
-                      {editable ? <TableHead /> : null}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {lista.map((m) => (
-                      <TableRow key={m.id} className="hover:bg-muted/40">
-                        <TableCell className="font-mono text-xs">{m.numero}</TableCell>
-                        <TableCell className="font-medium">{m.proveedor}</TableCell>
-                        <TableCell className="text-sm">{m.nit}</TableCell>
-                        <TableCell className="text-sm">
-                          {projects.find((p) => p.id === m.proyectoId)?.codigo ?? "—"}
-                        </TableCell>
-                        <TableCell className="text-sm">{fecha(m.fecha)}</TableCell>
-                        <TableCell className="text-right font-medium">{money(m.monto)}</TableCell>
-                        <TableCell className="max-w-[220px] truncate text-sm text-muted-foreground">
-                          {m.observacion}
-                        </TableCell>
-                        <TableCell>
+              <TabsContent key={t} value={t} className="mt-4">
+                {/* Vista móvil: tarjetas */}
+                <div className="space-y-3 md:hidden">
+                  {lista.map((m) => {
+                    const proyecto = projects.find((p) => p.id === m.proyectoId);
+                    return (
+                      <article
+                        key={m.id}
+                        className="rounded-lg border border-border bg-card p-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-medium leading-snug text-foreground">
+                              {m.proveedor}
+                            </p>
+                            <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                              N.º {m.numero}
+                              {m.nit ? ` · NIT ${m.nit}` : ""}
+                            </p>
+                          </div>
+                          <p className="shrink-0 text-right text-sm font-semibold tabular-nums">
+                            {money(m.monto)}
+                          </p>
+                        </div>
+                        <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <dt className="text-muted-foreground">Proyecto</dt>
+                            <dd className="truncate font-medium">
+                              {proyecto
+                                ? `${proyecto.codigo} — ${proyecto.nombre}`
+                                : "—"}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-muted-foreground">Fecha</dt>
+                            <dd className="font-medium">{fecha(m.fecha)}</dd>
+                          </div>
+                          {m.observacion ? (
+                            <div className="col-span-2">
+                              <dt className="text-muted-foreground">Observación</dt>
+                              <dd className="line-clamp-2">{m.observacion}</dd>
+                            </div>
+                          ) : null}
+                        </dl>
+                        <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3">
                           {m.adjuntoPath ? (
                             <Button
-                              variant="ghost"
-                              size="icon"
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5"
                               onClick={() => void verAdjunto(m.adjuntoPath!)}
-                              aria-label="Ver adjunto"
                             >
-                              <ExternalLink className="size-4" />
+                              <ExternalLink className="size-3.5" />
+                              Adjunto
                             </Button>
                           ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
+                            <span className="text-xs text-muted-foreground">Sin adjunto</span>
                           )}
-                        </TableCell>
-                        {editable ? (
-                          <TableCell>
+                          {editable ? (
                             <div className="flex items-center gap-1">
                               <Button
                                 variant="ghost"
@@ -460,19 +511,112 @@ function ContabilidadPage() {
                                 <Trash2 className="size-4" />
                               </Button>
                             </div>
+                          ) : null}
+                        </div>
+                      </article>
+                    );
+                  })}
+                  {!lista.length ? (
+                    <p className="py-10 text-center text-sm text-muted-foreground">
+                      {search.proyecto
+                        ? "Sin registros de este proyecto en esta sección."
+                        : "Sin registros en esta sección."}
+                    </p>
+                  ) : null}
+                </div>
+
+                {/* Vista desktop: tabla */}
+                <div className="hidden overflow-x-auto md:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead>Número</TableHead>
+                        <TableHead>Proveedor / concepto</TableHead>
+                        <TableHead>NIT</TableHead>
+                        <TableHead>Proyecto</TableHead>
+                        <TableHead>Fecha</TableHead>
+                        <TableHead className="text-right">Monto</TableHead>
+                        <TableHead>Observación</TableHead>
+                        <TableHead>Adjunto</TableHead>
+                        {editable ? <TableHead /> : null}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {lista.map((m) => (
+                        <TableRow key={m.id} className="hover:bg-muted/40">
+                          <TableCell className="font-mono text-xs">{m.numero}</TableCell>
+                          <TableCell className="font-medium">{m.proveedor}</TableCell>
+                          <TableCell className="text-sm">{m.nit}</TableCell>
+                          <TableCell className="text-sm">
+                            {projects.find((p) => p.id === m.proyectoId)?.codigo ?? "—"}
                           </TableCell>
-                        ) : null}
-                      </TableRow>
-                    ))}
-                    {!lista.length ? (
-                      <TableRow>
-                        <TableCell colSpan={9} className="py-10 text-center text-sm text-muted-foreground">
-                          Sin registros en esta sección.
-                        </TableCell>
-                      </TableRow>
-                    ) : null}
-                  </TableBody>
-                </Table>
+                          <TableCell className="text-sm">{fecha(m.fecha)}</TableCell>
+                          <TableCell className="text-right font-medium">{money(m.monto)}</TableCell>
+                          <TableCell className="max-w-[220px] truncate text-sm text-muted-foreground">
+                            {m.observacion}
+                          </TableCell>
+                          <TableCell>
+                            {m.adjuntoPath ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => void verAdjunto(m.adjuntoPath!)}
+                                aria-label="Ver adjunto"
+                              >
+                                <ExternalLink className="size-4" />
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          {editable ? (
+                            <TableCell>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => abrirEditar(m)}
+                                  aria-label="Editar"
+                                >
+                                  <Pencil className="size-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-destructive"
+                                  disabled={delMut.isPending}
+                                  onClick={() => {
+                                    void delMut
+                                      .mutateAsync({
+                                        id: m.id,
+                                        ...(m.adjuntoPath ? { adjuntoPath: m.adjuntoPath } : {}),
+                                      })
+                                      .then(() => toast.success("Registro eliminado."))
+                                      .catch((err: Error) => toast.error(err.message));
+                                  }}
+                                >
+                                  <Trash2 className="size-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          ) : null}
+                        </TableRow>
+                      ))}
+                      {!lista.length ? (
+                        <TableRow>
+                          <TableCell
+                            colSpan={9}
+                            className="py-10 text-center text-sm text-muted-foreground"
+                          >
+                            {search.proyecto
+                        ? "Sin registros de este proyecto en esta sección."
+                        : "Sin registros en esta sección."}
+                          </TableCell>
+                        </TableRow>
+                      ) : null}
+                    </TableBody>
+                  </Table>
+                </div>
               </TabsContent>
             );
           })}

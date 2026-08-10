@@ -68,50 +68,147 @@ function TablaInsumos({
           : it,
       ),
     );
+
+  const quitar = (i: number) => onChange(items.filter((_, idx) => idx !== i));
+
   return (
     <div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Descripción</TableHead>
-            <TableHead className="w-24">Unidad</TableHead>
-            <TableHead className="w-24">Cant.</TableHead>
-            <TableHead className="w-28">P. unit.</TableHead>
-            <TableHead className="w-28 text-right">Parcial</TableHead>
-            <TableHead className="w-10" />
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {items.map((it, i) => (
-            <TableRow key={i}>
-              <TableCell>
-                <Input value={it.descripcion} onChange={(e) => set(i, "descripcion", e.target.value)} />
-              </TableCell>
-              <TableCell>
-                <Input value={it.unidad} onChange={(e) => set(i, "unidad", e.target.value)} />
-              </TableCell>
-              <TableCell>
-                <Input type="number" value={it.cantidad} onChange={(e) => set(i, "cantidad", e.target.value)} />
-              </TableCell>
-              <TableCell>
-                <Input type="number" value={it.precio} onChange={(e) => set(i, "precio", e.target.value)} />
-              </TableCell>
-              <TableCell className="text-right text-sm">{money2(it.cantidad * it.precio)}</TableCell>
-              <TableCell>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-destructive"
-                  onClick={() => onChange(items.filter((_, idx) => idx !== i))}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              </TableCell>
+      {/* Vista móvil: tarjetas */}
+      <div className="space-y-3 md:hidden">
+        {items.map((it, i) => (
+          <article key={i} className="rounded-lg border border-border bg-card p-3">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-xs font-medium text-muted-foreground">Fila {i + 1}</p>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 shrink-0 text-destructive"
+                onClick={() => quitar(i)}
+                aria-label="Eliminar fila"
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </div>
+            <div className="mt-2 space-y-3">
+              <Field label="Descripción">
+                <Input
+                  value={it.descripcion}
+                  onChange={(e) => set(i, "descripcion", e.target.value)}
+                />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Unidad">
+                  <Input
+                    value={it.unidad}
+                    onChange={(e) => set(i, "unidad", e.target.value)}
+                  />
+                </Field>
+                <Field label="Cantidad">
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    className="tabular-nums"
+                    value={it.cantidad}
+                    onChange={(e) => set(i, "cantidad", e.target.value)}
+                  />
+                </Field>
+                <Field label="P. unitario">
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    className="tabular-nums"
+                    value={it.precio}
+                    onChange={(e) => set(i, "precio", e.target.value)}
+                  />
+                </Field>
+                <div>
+                  <p className="label-kicker">Parcial</p>
+                  <p className="mt-2 text-sm font-semibold tabular-nums">
+                    {money2(it.cantidad * it.precio)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </article>
+        ))}
+        {!items.length ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            Sin filas. Agregue el primer insumo.
+          </p>
+        ) : null}
+      </div>
+
+      {/* Vista desktop: tabla */}
+      <div className="hidden overflow-x-auto md:block">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Descripción</TableHead>
+              <TableHead className="min-w-[6rem]">Unidad</TableHead>
+              <TableHead className="min-w-[7rem]">Cant.</TableHead>
+              <TableHead className="min-w-[8rem]">P. unit.</TableHead>
+              <TableHead className="min-w-[7rem] text-right">Parcial</TableHead>
+              <TableHead className="w-10" />
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-      <Button variant="outline" size="sm" className="mt-3 gap-2" onClick={() => onChange([...items, { ...filaVacia }])}>
+          </TableHeader>
+          <TableBody>
+            {items.map((it, i) => (
+              <TableRow key={i}>
+                <TableCell>
+                  <Input
+                    value={it.descripcion}
+                    onChange={(e) => set(i, "descripcion", e.target.value)}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    value={it.unidad}
+                    onChange={(e) => set(i, "unidad", e.target.value)}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    className="min-w-[6rem] tabular-nums"
+                    value={it.cantidad}
+                    onChange={(e) => set(i, "cantidad", e.target.value)}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    className="min-w-[7rem] tabular-nums"
+                    value={it.precio}
+                    onChange={(e) => set(i, "precio", e.target.value)}
+                  />
+                </TableCell>
+                <TableCell className="text-right text-sm tabular-nums">
+                  {money2(it.cantidad * it.precio)}
+                </TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-destructive"
+                    onClick={() => quitar(i)}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      <Button
+        variant="outline"
+        size="sm"
+        className="mt-3 gap-2"
+        onClick={() => onChange([...items, { ...filaVacia }])}
+      >
         <Plus className="size-4" /> Agregar fila
       </Button>
     </div>
@@ -295,7 +392,7 @@ function ApuPage() {
           if (!v) resetForm();
         }}
       >
-        <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto">
+        <DialogContent className="sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle className="font-display text-2xl tracking-wide uppercase">
               {editingId ? "Editar APU" : "Nuevo Análisis de Precio Unitario"}
@@ -306,13 +403,25 @@ function ApuPage() {
           </DialogHeader>
 
           <Tabs defaultValue="general">
-            <TabsList className="flex-wrap">
-              <TabsTrigger value="general">General</TabsTrigger>
-              <TabsTrigger value="materiales">Materiales</TabsTrigger>
-              <TabsTrigger value="equipos">Equipos</TabsTrigger>
-              <TabsTrigger value="mano">Mano de obra</TabsTrigger>
-              <TabsTrigger value="resumen">Resumen</TabsTrigger>
-            </TabsList>
+            <div className="-mx-1 overflow-x-auto px-1 pb-1">
+              <TabsList className="inline-flex h-auto min-w-full w-max flex-nowrap justify-start gap-1">
+                <TabsTrigger value="general" className="shrink-0">
+                  General
+                </TabsTrigger>
+                <TabsTrigger value="materiales" className="shrink-0">
+                  Materiales
+                </TabsTrigger>
+                <TabsTrigger value="equipos" className="shrink-0">
+                  Equipos
+                </TabsTrigger>
+                <TabsTrigger value="mano" className="shrink-0">
+                  Mano de obra
+                </TabsTrigger>
+                <TabsTrigger value="resumen" className="shrink-0">
+                  Resumen
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
             <TabsContent value="general" className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Código">

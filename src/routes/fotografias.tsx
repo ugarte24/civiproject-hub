@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { createFileRoute, useSearch } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, Camera as CameraIcon, User, ImageIcon, X } from "lucide-react";
 import {
@@ -46,7 +46,7 @@ export const Route = createFileRoute("/fotografias")({
       {
         name: "description",
         content:
-          "Galería fotográfica del avance de obra con fecha, ubicación, autor y descripción por proyecto.",
+          "Galería fotográfica del avance de obra con fecha, autor y descripción por proyecto.",
       },
     ],
   }),
@@ -85,6 +85,7 @@ function FotoImg({ path, alt }: { path: string; alt: string }) {
 
 function FotografiasPage() {
   const search = useSearch({ from: "/fotografias" });
+  const navigate = useNavigate({ from: "/fotografias" });
   const { profile } = useAuth();
   const { data: projects = [], isLoading: loadingProj } = useProyectos();
   const { data: fotografias = [], isLoading } = useFotografias();
@@ -270,6 +271,9 @@ function FotografiasPage() {
 
   if (!puedeVer("fotografias")) return <AccesoDenegado modulo="Fotografías" />;
 
+  const lista = fotografias.filter((f) => !search.proyecto || f.proyectoId === search.proyecto);
+  const filtroProyecto = search.proyecto ?? "todos";
+
   return (
     <div>
       <PageHeader
@@ -285,12 +289,36 @@ function FotografiasPage() {
         }
       />
 
+      <div className="mb-4 max-w-xl">
+        <Select
+          value={filtroProyecto}
+          onValueChange={(v) => {
+            void navigate({
+              search: { proyecto: v === "todos" ? undefined : v },
+              replace: true,
+            });
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Filtrar por proyecto" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos los proyectos</SelectItem>
+            {projects.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.codigo} — {p.nombre}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       {isLoading || loadingProj ? (
         <p className="text-sm text-muted-foreground">Cargando fotografías…</p>
       ) : null}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {fotografias.map((f) => (
+        {lista.map((f) => (
           <figure key={f.id} className="panel overflow-hidden">
             <div className="relative flex aspect-video items-center justify-center bg-muted">
               <FotoImg path={f.imagen} alt={f.descripcion} />
@@ -334,9 +362,11 @@ function FotografiasPage() {
             </figcaption>
           </figure>
         ))}
-        {!isLoading && !fotografias.length ? (
+        {!isLoading && !lista.length ? (
           <p className="text-sm text-muted-foreground sm:col-span-2 xl:col-span-3">
-            Aún no hay fotografías. Suba la primera evidencia de avance.
+            {search.proyecto
+              ? "No hay fotografías para este proyecto."
+              : "Aún no hay fotografías. Suba la primera evidencia de avance."}
           </p>
         ) : null}
       </div>

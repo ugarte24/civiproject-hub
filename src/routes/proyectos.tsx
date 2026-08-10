@@ -118,25 +118,16 @@ const emptyForm: FormState = {
   estado: "Activo",
 };
 
-/** Genera el siguiente código numérico AAAANNN (ej. 2026001). */
+/** Genera el siguiente código correlativo (001, 002, …). */
 function siguienteCodigo(projects: Project[]): string {
-  const year = String(new Date().getFullYear());
   let max = 0;
   for (const p of projects) {
     const c = p.codigo.trim();
-    if (/^\d+$/.test(c) && c.startsWith(year) && c.length > year.length) {
-      const n = Number(c.slice(year.length));
-      if (Number.isFinite(n) && n > max) max = n;
-      continue;
-    }
-    // Compatibilidad con códigos antiguos PRY-AAAA-NNN
-    const legacy = `PRY-${year}-`;
-    if (c.startsWith(legacy)) {
-      const n = Number(c.slice(legacy.length));
-      if (Number.isFinite(n) && n > max) max = n;
-    }
+    if (!/^\d+$/.test(c)) continue;
+    const n = Number(c);
+    if (Number.isFinite(n) && n > max) max = n;
   }
-  return `${year}${String(max + 1).padStart(3, "0")}`;
+  return String(max + 1).padStart(3, "0");
 }
 
 function ProyectosPage() {
