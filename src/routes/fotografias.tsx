@@ -250,8 +250,12 @@ function FotografiasPage() {
           descripcion: form.descripcion.trim(),
           ubicacion: editing.ubicacion || "",
           autor: form.autor || profile?.nombre || role,
+          imagenActual: editing.imagen,
+          ...(compressedFile ? { file: compressedFile } : {}),
         });
-        toast.success("Fotografía actualizada.");
+        toast.success(
+          compressedFile ? "Fotografía y imagen actualizadas." : "Fotografía actualizada.",
+        );
       } else {
         await addFoto.mutateAsync({
           proyectoId: form.proyectoId,
@@ -404,7 +408,7 @@ function FotografiasPage() {
               {proyecto
                 ? `${proyecto.codigo} — ${proyecto.nombre}`
                 : editing
-                  ? "Actualice fecha y descripción. La imagen se conserva."
+                  ? "Puede actualizar fecha, descripción e imagen."
                   : "La imagen se comprime automáticamente antes de guardarla."}
             </DialogDescription>
           </DialogHeader>
@@ -427,83 +431,95 @@ function FotografiasPage() {
                 onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
               />
             </Field>
-            {!editing ? (
-              <>
-                <Field label="Imagen o foto" full error={touched ? errores["imagen"] : undefined}>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <label
-                      className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted"
-                      onPointerDown={beginPickFile}
+            <Field
+              label={editing ? "Imagen o foto (opcional reemplazar)" : "Imagen o foto"}
+              full
+              error={touched ? errores["imagen"] : undefined}
+            >
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <label
+                  className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted"
+                  onPointerDown={beginPickFile}
+                >
+                  <span className="flex items-center gap-2">
+                    <ImageIcon className="size-4" /> Galería
+                  </span>
+                  <span className="text-xs">
+                    {editing ? "Reemplazar desde galería" : "Seleccionar imagen"}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      void onPickFile(e.target.files?.[0]);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+                <label
+                  className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted"
+                  onPointerDown={beginPickFile}
+                >
+                  <span className="flex items-center gap-2">
+                    <CameraIcon className="size-4" /> Cámara
+                  </span>
+                  <span className="text-xs">{editing ? "Reemplazar con foto" : "Tomar foto"}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={(e) => {
+                      void onPickFile(e.target.files?.[0]);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              </div>
+              <p className="mt-1.5 truncate text-xs text-muted-foreground">
+                {compressedFile?.name ||
+                  (editing ? "Se conserva la imagen actual si no elige otra." : "Ningún archivo seleccionado")}
+              </p>
+              {sizeInfo ? (
+                <p className="mt-1 text-xs text-muted-foreground">{sizeInfo}</p>
+              ) : null}
+            </Field>
+            <div className="sm:col-span-2">
+              <p className="label-kicker">Vista previa</p>
+              <div className="relative mt-2 flex min-h-[12rem] max-h-[50vh] items-center justify-center overflow-auto rounded-md border border-dashed border-border bg-muted/50 p-2">
+                {preview ? (
+                  <>
+                    <img
+                      src={preview}
+                      alt="Vista previa"
+                      className="max-h-[46vh] w-auto max-w-full object-contain"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="icon"
+                      className="absolute top-2 right-2 size-8 rounded-full border border-border bg-background/90 text-destructive shadow-sm hover:bg-background hover:text-destructive"
+                      onClick={quitarFoto}
+                      aria-label="Quitar foto nueva"
                     >
-                      <span className="flex items-center gap-2">
-                        <ImageIcon className="size-4" /> Galería
-                      </span>
-                      <span className="text-xs">Seleccionar imagen</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          void onPickFile(e.target.files?.[0]);
-                          e.target.value = "";
-                        }}
-                      />
-                    </label>
-                    <label
-                      className="flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground hover:bg-muted"
-                      onPointerDown={beginPickFile}
-                    >
-                      <span className="flex items-center gap-2">
-                        <CameraIcon className="size-4" /> Cámara
-                      </span>
-                      <span className="text-xs">Tomar foto</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        className="hidden"
-                        onChange={(e) => {
-                          void onPickFile(e.target.files?.[0]);
-                          e.target.value = "";
-                        }}
-                      />
-                    </label>
+                      <X className="size-4" />
+                    </Button>
+                  </>
+                ) : editing?.imagen ? (
+                  <div className="relative h-48 w-full">
+                    <FotoImg path={editing.imagen} alt={editing.descripcion || "Foto actual"} />
                   </div>
-                  <p className="mt-1.5 truncate text-xs text-muted-foreground">
-                    {compressedFile?.name || "Ningún archivo seleccionado"}
-                  </p>
-                  {sizeInfo ? (
-                    <p className="mt-1 text-xs text-muted-foreground">{sizeInfo}</p>
-                  ) : null}
-                </Field>
-                <div className="sm:col-span-2">
-                  <p className="label-kicker">Vista previa</p>
-                  <div className="relative mt-2 flex min-h-[12rem] max-h-[50vh] items-center justify-center overflow-auto rounded-md border border-dashed border-border bg-muted/50 p-2">
-                    {preview ? (
-                      <>
-                        <img
-                          src={preview}
-                          alt="Vista previa"
-                          className="max-h-[46vh] w-auto max-w-full object-contain"
-                        />
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="icon"
-                          className="absolute top-2 right-2 size-8 rounded-full border border-border bg-background/90 text-destructive shadow-sm hover:bg-background hover:text-destructive"
-                          onClick={quitarFoto}
-                          aria-label="Quitar foto"
-                        >
-                          <X className="size-4" />
-                        </Button>
-                      </>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">Sin imagen seleccionada</span>
-                    )}
-                  </div>
-                </div>
-              </>
-            ) : null}
+                ) : (
+                  <span className="text-xs text-muted-foreground">Sin imagen seleccionada</span>
+                )}
+              </div>
+              {editing && preview ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Pulse la X para cancelar el reemplazo y conservar la imagen actual.
+                </p>
+              ) : null}
+            </div>
           </div>
           <DialogFooter className="gap-2 sm:justify-between">
             <Button variant="outline" onClick={() => setOpen(false)}>

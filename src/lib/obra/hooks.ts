@@ -596,6 +596,7 @@ export function useAddFotografia() {
 
 export function useUpdateFotografia() {
   const qc = useQueryClient();
+  const { profile } = useAuth();
   return useMutation({
     mutationFn: async (f: {
       id: string;
@@ -604,7 +605,26 @@ export function useUpdateFotografia() {
       descripcion: string;
       ubicacion: string;
       autor: string;
+      imagenActual?: string;
+      file?: File | null;
     }) => {
+      let storage_path: string | undefined;
+      if (f.file) {
+        if (!profile?.empresa_id) throw new Error("Sin empresa asignada");
+        const mime = f.file.type || "image/jpeg";
+        const ext =
+          mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
+        const path = `${profile.empresa_id}/${f.proyectoId}/${crypto.randomUUID()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("fotografias").upload(path, f.file, {
+          upsert: false,
+          contentType: mime,
+        });
+        throwIf(upErr);
+        if (f.imagenActual && !f.imagenActual.startsWith("data:")) {
+          await supabase.storage.from("fotografias").remove([f.imagenActual]);
+        }
+        storage_path = path;
+      }
       const { error } = await supabase
         .from("fotografias")
         .update({
@@ -613,6 +633,7 @@ export function useUpdateFotografia() {
           descripcion: f.descripcion,
           ubicacion: f.ubicacion,
           autor: f.autor,
+          ...(storage_path ? { storage_path } : {}),
         })
         .eq("id", f.id);
       throwIf(error);
