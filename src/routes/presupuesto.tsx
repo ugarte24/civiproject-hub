@@ -189,35 +189,25 @@ function PresupuestoPage() {
         </div>
       </div>
 
-      <div className="panel mt-4 overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/50">
-              <TableHead>Partida</TableHead>
-              <TableHead>Descripción</TableHead>
-              <TableHead className="text-right">Monto</TableHead>
-              <TableHead className="text-right">Ejecutado</TableHead>
-              <TableHead className="text-right">Saldo</TableHead>
-              <TableHead className="w-[110px]">Avance</TableHead>
-              {editable ? <TableHead className="w-[90px]" /> : null}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {lista.map((p) => (
-              <TableRow key={p.id} className="hover:bg-muted/40">
-                <TableCell className="font-medium">{p.nombre}</TableCell>
-                <TableCell className="max-w-[260px] truncate text-sm text-muted-foreground">
-                  {p.descripcion}
-                </TableCell>
-                <TableCell className="text-right">{money(p.monto)}</TableCell>
-                <TableCell className="text-right">{money(p.ejecutado)}</TableCell>
-                <TableCell className="text-right">{money(p.monto - p.ejecutado)}</TableCell>
-                <TableCell>
-                  <Progress value={p.monto ? (p.ejecutado / p.monto) * 100 : 0} />
-                </TableCell>
-                {editable ? (
-                  <TableCell>
-                    <div className="flex items-center gap-1">
+      <div className="panel mt-4 p-3 sm:p-4">
+        {/* Vista móvil: tarjetas */}
+        <div className="space-y-3 md:hidden">
+          {lista.map((p) => {
+            const saldo = p.monto - p.ejecutado;
+            const avance = p.monto ? (p.ejecutado / p.monto) * 100 : 0;
+            return (
+              <article key={p.id} className="rounded-lg border border-border bg-card p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="font-medium leading-snug text-foreground">{p.nombre}</h3>
+                    {p.descripcion ? (
+                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                        {p.descripcion}
+                      </p>
+                    ) : null}
+                  </div>
+                  {editable ? (
+                    <div className="flex shrink-0 items-center gap-1">
                       <Button
                         variant="ghost"
                         size="icon"
@@ -241,32 +231,138 @@ function PresupuestoPage() {
                         <Trash2 className="size-4" />
                       </Button>
                     </div>
-                  </TableCell>
-                ) : null}
-              </TableRow>
-            ))}
-            {!lista.length ? (
-              <TableRow>
-                <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
-                  Este proyecto todavía no tiene partidas registradas.
-                </TableCell>
-              </TableRow>
-            ) : null}
-          </TableBody>
-          {lista.length ? (
-            <TableFooter>
-              <TableRow>
-                <TableCell colSpan={2} className="font-display uppercase">
-                  Totales
-                </TableCell>
-                <TableCell className="text-right font-medium">{money(total)}</TableCell>
-                <TableCell className="text-right font-medium">{money(ejec)}</TableCell>
-                <TableCell className="text-right font-medium">{money(total - ejec)}</TableCell>
-                <TableCell colSpan={editable ? 2 : 1} />
-              </TableRow>
-            </TableFooter>
+                  ) : null}
+                </div>
+                <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <dt className="text-muted-foreground">Monto</dt>
+                    <dd className="font-medium tabular-nums">{money(p.monto)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Ejecutado</dt>
+                    <dd className="font-medium tabular-nums">{money(p.ejecutado)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Saldo</dt>
+                    <dd className="font-semibold tabular-nums">{money(saldo)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Avance</dt>
+                    <dd className="font-medium tabular-nums">{avance.toFixed(0)}%</dd>
+                  </div>
+                </dl>
+                <Progress value={avance} className="mt-3" />
+              </article>
+            );
+          })}
+          {!lista.length ? (
+            <p className="py-10 text-center text-sm text-muted-foreground">
+              Este proyecto todavía no tiene partidas registradas.
+            </p>
           ) : null}
-        </Table>
+          {lista.length ? (
+            <div className="rounded-lg border border-border bg-muted/40 p-4">
+              <p className="font-display text-xs uppercase tracking-wide text-muted-foreground">
+                Totales
+              </p>
+              <dl className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                <div>
+                  <dt className="text-muted-foreground">Monto</dt>
+                  <dd className="font-semibold tabular-nums">{money(total)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Ejecutado</dt>
+                  <dd className="font-semibold tabular-nums">{money(ejec)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Saldo</dt>
+                  <dd className="font-semibold tabular-nums">{money(total - ejec)}</dd>
+                </div>
+              </dl>
+            </div>
+          ) : null}
+        </div>
+
+        {/* Vista desktop: tabla */}
+        <div className="hidden overflow-x-auto md:block">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead>Partida</TableHead>
+                <TableHead>Descripción</TableHead>
+                <TableHead className="text-right">Monto</TableHead>
+                <TableHead className="text-right">Ejecutado</TableHead>
+                <TableHead className="text-right">Saldo</TableHead>
+                <TableHead className="w-[110px]">Avance</TableHead>
+                {editable ? <TableHead className="w-[90px]" /> : null}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {lista.map((p) => (
+                <TableRow key={p.id} className="hover:bg-muted/40">
+                  <TableCell className="font-medium">{p.nombre}</TableCell>
+                  <TableCell className="max-w-[260px] truncate text-sm text-muted-foreground">
+                    {p.descripcion}
+                  </TableCell>
+                  <TableCell className="text-right">{money(p.monto)}</TableCell>
+                  <TableCell className="text-right">{money(p.ejecutado)}</TableCell>
+                  <TableCell className="text-right">{money(p.monto - p.ejecutado)}</TableCell>
+                  <TableCell>
+                    <Progress value={p.monto ? (p.ejecutado / p.monto) * 100 : 0} />
+                  </TableCell>
+                  {editable ? (
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => abrirEditar(p)}
+                          aria-label="Editar partida"
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive"
+                          disabled={delMut.isPending}
+                          onClick={() => {
+                            void delMut.mutateAsync(p.id).then(
+                              () => toast.success("Partida eliminada."),
+                              (err: Error) => toast.error(err.message),
+                            );
+                          }}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  ) : null}
+                </TableRow>
+              ))}
+              {!lista.length ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                    Este proyecto todavía no tiene partidas registradas.
+                  </TableCell>
+                </TableRow>
+              ) : null}
+            </TableBody>
+            {lista.length ? (
+              <TableFooter>
+                <TableRow>
+                  <TableCell colSpan={2} className="font-display uppercase">
+                    Totales
+                  </TableCell>
+                  <TableCell className="text-right font-medium">{money(total)}</TableCell>
+                  <TableCell className="text-right font-medium">{money(ejec)}</TableCell>
+                  <TableCell className="text-right font-medium">{money(total - ejec)}</TableCell>
+                  <TableCell colSpan={editable ? 2 : 1} />
+                </TableRow>
+              </TableFooter>
+            ) : null}
+          </Table>
+        </div>
       </div>
 
       <Dialog

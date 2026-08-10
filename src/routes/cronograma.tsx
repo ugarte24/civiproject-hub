@@ -183,10 +183,93 @@ function CronogramaPage() {
         </Select>
       </div>
 
-      <div className="panel overflow-x-auto p-3 sm:p-5">
-        <p className="mb-3 text-xs text-muted-foreground md:hidden">
-          Desliza horizontalmente para ver el Gantt completo.
-        </p>
+      {/* Vista móvil: tarjetas */}
+      <div className="space-y-3 md:hidden">
+        {lista.map((a) => {
+          const offset = ((new Date(a.inicio).getTime() - inicioMin) / span) * 100;
+          const width = ((new Date(a.fin).getTime() - new Date(a.inicio).getTime()) / span) * 100;
+          return (
+            <article key={a.id} className="panel p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="font-medium leading-snug text-foreground">{a.nombre}</h3>
+                  <Badge variant="outline" className="mt-1.5">
+                    {a.estado}
+                  </Badge>
+                </div>
+                {editable ? (
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => abrirEditar(a)}
+                      aria-label="Editar actividad"
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive"
+                      disabled={delMut.isPending}
+                      onClick={() => {
+                        void delMut
+                          .mutateAsync(a.id)
+                          .then(() => toast.success("Actividad eliminada."))
+                          .catch((err: Error) => toast.error(err.message));
+                      }}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+
+              <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <dt className="text-muted-foreground">Inicio</dt>
+                  <dd className="font-medium">{fecha(a.inicio)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Fin</dt>
+                  <dd className="font-medium">{fecha(a.fin)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Duración</dt>
+                  <dd className="font-medium">{dias(a.inicio, a.fin)} días</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Responsable</dt>
+                  <dd className="truncate font-medium">{a.responsable || "—"}</dd>
+                </div>
+              </dl>
+
+              <div className="mt-3">
+                <div className="mb-1 flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Programación</span>
+                  <span className="tabular-nums text-muted-foreground">{a.avance}%</span>
+                </div>
+                <div className="relative h-7 rounded-md bg-muted">
+                  <div
+                    className={`absolute top-1 h-5 rounded-md ${tono(a.estado)}`}
+                    style={{ left: `${offset}%`, width: `${Math.max(width, 8)}%` }}
+                    title={`${a.avance}% de avance`}
+                  />
+                </div>
+                <Progress value={a.avance} className="mt-2" />
+              </div>
+            </article>
+          );
+        })}
+        {!lista.length ? (
+          <p className="panel py-10 text-center text-sm text-muted-foreground">
+            El proyecto seleccionado no tiene actividades programadas.
+          </p>
+        ) : null}
+      </div>
+
+      {/* Vista desktop: Gantt */}
+      <div className="panel hidden overflow-x-auto p-3 sm:p-5 md:block">
         <div className="min-w-[720px]">
           <div
             className={`grid gap-3 border-b border-border pb-2 ${
@@ -272,7 +355,7 @@ function CronogramaPage() {
       </div>
 
       {lista.length ? (
-        <div className="panel mt-4 p-4 sm:p-5">
+        <div className="panel mt-4 hidden p-4 sm:p-5 md:block">
           <p className="label-kicker">Avance por actividad</p>
           <div className="mt-4 space-y-4">
             {lista.map((a) => (

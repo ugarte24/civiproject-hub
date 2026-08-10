@@ -56,9 +56,11 @@ const filaVacia: ApuInsumo = { descripcion: "", unidad: "", cantidad: 0, precio:
 function TablaInsumos({
   items,
   onChange,
+  unidadPlaceholder = "kg, m³, ml…",
 }: {
   items: ApuInsumo[];
   onChange: (items: ApuInsumo[]) => void;
+  unidadPlaceholder?: string;
 }) {
   const set = (i: number, k: keyof ApuInsumo, v: string) =>
     onChange(
@@ -101,6 +103,7 @@ function TablaInsumos({
                   <Input
                     value={it.unidad}
                     onChange={(e) => set(i, "unidad", e.target.value)}
+                    placeholder={unidadPlaceholder}
                   />
                 </Field>
                 <Field label="Cantidad">
@@ -108,7 +111,7 @@ function TablaInsumos({
                     type="number"
                     inputMode="decimal"
                     className="tabular-nums"
-                    value={it.cantidad}
+                    value={it.cantidad || ""}
                     onChange={(e) => set(i, "cantidad", e.target.value)}
                   />
                 </Field>
@@ -117,16 +120,15 @@ function TablaInsumos({
                     type="number"
                     inputMode="decimal"
                     className="tabular-nums"
-                    value={it.precio}
+                    value={it.precio || ""}
                     onChange={(e) => set(i, "precio", e.target.value)}
                   />
                 </Field>
-                <div>
-                  <p className="label-kicker">Parcial</p>
-                  <p className="mt-2 text-sm font-semibold tabular-nums">
+                <Field label="Parcial">
+                  <div className="flex h-9 w-full items-center rounded-md border border-input bg-muted/40 px-3 text-base font-medium tabular-nums md:text-sm">
                     {money2(it.cantidad * it.precio)}
-                  </p>
-                </div>
+                  </div>
+                </Field>
               </div>
             </div>
           </article>
@@ -164,6 +166,7 @@ function TablaInsumos({
                   <Input
                     value={it.unidad}
                     onChange={(e) => set(i, "unidad", e.target.value)}
+                    placeholder={unidadPlaceholder}
                   />
                 </TableCell>
                 <TableCell>
@@ -171,7 +174,7 @@ function TablaInsumos({
                     type="number"
                     inputMode="decimal"
                     className="min-w-[6rem] tabular-nums"
-                    value={it.cantidad}
+                    value={it.cantidad || ""}
                     onChange={(e) => set(i, "cantidad", e.target.value)}
                   />
                 </TableCell>
@@ -180,7 +183,7 @@ function TablaInsumos({
                     type="number"
                     inputMode="decimal"
                     className="min-w-[7rem] tabular-nums"
-                    value={it.precio}
+                    value={it.precio || ""}
                     onChange={(e) => set(i, "precio", e.target.value)}
                   />
                 </TableCell>
@@ -239,6 +242,7 @@ function ApuPage() {
   const [materiales, setMateriales] = useState<ApuInsumo[]>([{ ...filaVacia }]);
   const [equipos, setEquipos] = useState<ApuInsumo[]>([{ ...filaVacia }]);
   const [manoObra, setManoObra] = useState<ApuInsumo[]>([{ ...filaVacia }]);
+  const [touched, setTouched] = useState(false);
 
   if (!puedeVer("apu")) return <AccesoDenegado modulo="APU" />;
 
@@ -256,12 +260,20 @@ function ApuPage() {
   };
   const calc = apuPrecioUnitario(borrador);
 
+  const errores: Record<string, string> = {};
+  if (!general.codigo.trim()) errores["codigo"] = "Código requerido.";
+  if (general.descripcion.trim().length < 5) {
+    errores["descripcion"] = "La descripción debe tener al menos 5 caracteres.";
+  }
+  if (!general.unidad.trim()) errores["unidad"] = "Unidad requerida.";
+
   const resetForm = () => {
     setEditingId(null);
     setGeneral(formVacio());
     setMateriales([{ ...filaVacia }]);
     setEquipos([{ ...filaVacia }]);
     setManoObra([{ ...filaVacia }]);
+    setTouched(false);
   };
 
   const abrirNuevo = () => {
@@ -282,12 +294,14 @@ function ApuPage() {
     setMateriales(a.materiales.length ? a.materiales : [{ ...filaVacia }]);
     setEquipos(a.equipos.length ? a.equipos : [{ ...filaVacia }]);
     setManoObra(a.manoObra.length ? a.manoObra : [{ ...filaVacia }]);
+    setTouched(false);
     setOpen(true);
   };
 
   const guardar = () => {
-    if (!general.codigo.trim() || general.descripcion.trim().length < 5 || !general.unidad.trim()) {
-      toast.error("Complete código, descripción y unidad.");
+    if (Object.keys(errores).length) {
+      setTouched(true);
+      toast.error(errores["descripcion"] || errores["codigo"] || errores["unidad"] || "Revise los campos marcados.");
       return;
     }
     const { id: _id, ...rest } = borrador;
@@ -424,24 +438,25 @@ function ApuPage() {
             </div>
 
             <TabsContent value="general" className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Código">
+              <Field label="Código" error={touched ? errores["codigo"] : undefined}>
                 <Input
                   value={general.codigo}
                   onChange={(e) => setGeneral((g) => ({ ...g, codigo: e.target.value }))}
                   placeholder="APU-003"
                 />
               </Field>
-              <Field label="Unidad">
+              <Field label="Unidad" error={touched ? errores["unidad"] : undefined}>
                 <Input
                   value={general.unidad}
                   onChange={(e) => setGeneral((g) => ({ ...g, unidad: e.target.value }))}
                   placeholder="m³, m², ml, kg"
                 />
               </Field>
-              <Field label="Descripción" full>
+              <Field label="Descripción" full error={touched ? errores["descripcion"] : undefined}>
                 <Input
                   value={general.descripcion}
                   onChange={(e) => setGeneral((g) => ({ ...g, descripcion: e.target.value }))}
+                  placeholder="Mínimo 5 caracteres"
                 />
               </Field>
               <Field label="Cantidad">
@@ -468,13 +483,25 @@ function ApuPage() {
             </TabsContent>
 
             <TabsContent value="materiales" className="mt-4">
-              <TablaInsumos items={materiales} onChange={setMateriales} />
+              <TablaInsumos
+                items={materiales}
+                onChange={setMateriales}
+                unidadPlaceholder="kg, m³, ml…"
+              />
             </TabsContent>
             <TabsContent value="equipos" className="mt-4">
-              <TablaInsumos items={equipos} onChange={setEquipos} />
+              <TablaInsumos
+                items={equipos}
+                onChange={setEquipos}
+                unidadPlaceholder="hora, día, viaje…"
+              />
             </TabsContent>
             <TabsContent value="mano" className="mt-4">
-              <TablaInsumos items={manoObra} onChange={setManoObra} />
+              <TablaInsumos
+                items={manoObra}
+                onChange={setManoObra}
+                unidadPlaceholder="jornal, hora, día…"
+              />
             </TabsContent>
 
             <TabsContent value="resumen" className="mt-4">

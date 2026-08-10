@@ -222,7 +222,7 @@ function ReportesPage() {
               <SelectItem value="todos">Todos</SelectItem>
               {projects.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
-                  {p.codigo}
+                  {p.codigo} — {p.nombre}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -252,57 +252,107 @@ function ReportesPage() {
         </Field>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        <Button className="gap-2" onClick={onPdf} disabled={exporting}>
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        <Button className="w-full gap-2 sm:w-auto" onClick={onPdf} disabled={exporting}>
           <FileDown className="size-4" /> Exportar PDF
         </Button>
-        <Button variant="outline" className="gap-2" onClick={onExcel}>
+        <Button variant="outline" className="w-full gap-2 sm:w-auto" onClick={onExcel}>
           <FileSpreadsheet className="size-4" /> Exportar Excel
         </Button>
       </div>
 
-      <div className="panel mt-4 overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/50">
-              <TableHead>Código</TableHead>
-              <TableHead>Proyecto</TableHead>
-              <TableHead>Empresa</TableHead>
-              <TableHead>Responsable</TableHead>
-              <TableHead>Periodo</TableHead>
-              <TableHead>Estado</TableHead>
-              <TableHead className="text-right">Presupuesto</TableHead>
-              <TableHead className="text-right">Ejecutado</TableHead>
-              <TableHead className="text-right">Avance</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {lista.map((p) => (
-              <TableRow key={p.id}>
-                <TableCell className="font-mono text-xs">{p.codigo}</TableCell>
-                <TableCell className="max-w-[220px] truncate">{p.nombre}</TableCell>
-                <TableCell className="text-sm">{p.empresa}</TableCell>
-                <TableCell className="text-sm">{p.responsable}</TableCell>
-                <TableCell className="text-sm">
-                  {fecha(p.fechaInicio)} – {fecha(p.fechaFinal)}
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline">{p.estado}</Badge>
-                </TableCell>
-                <TableCell className="text-right">{money(p.presupuesto)}</TableCell>
-                <TableCell className="text-right">{money(p.ejecutado)}</TableCell>
-                <TableCell className="text-right">{p.avanceFisico}%</TableCell>
+      <div className="panel mt-4 p-3 sm:p-4">
+        {/* Vista móvil: tarjetas */}
+        <div className="space-y-3 md:hidden">
+          {lista.map((p) => (
+            <article key={p.id} className="rounded-lg border border-border bg-card p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-mono text-xs text-muted-foreground">{p.codigo}</p>
+                  <h3 className="mt-0.5 text-sm font-semibold leading-snug">{p.nombre}</h3>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">{p.empresa}</p>
+                </div>
+                <Badge variant="outline" className="shrink-0">
+                  {p.estado}
+                </Badge>
+              </div>
+              <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <dt className="text-muted-foreground">Responsable</dt>
+                  <dd className="truncate font-medium">{p.responsable}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Avance</dt>
+                  <dd className="font-medium tabular-nums">{p.avanceFisico}%</dd>
+                </div>
+                <div className="col-span-2">
+                  <dt className="text-muted-foreground">Periodo</dt>
+                  <dd className="font-medium">
+                    {fecha(p.fechaInicio)} – {fecha(p.fechaFinal)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Presupuesto</dt>
+                  <dd className="font-semibold tabular-nums">{money(p.presupuesto)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Ejecutado</dt>
+                  <dd className="font-semibold tabular-nums">{money(p.ejecutado)}</dd>
+                </div>
+              </dl>
+            </article>
+          ))}
+          {!lista.length ? (
+            <p className="py-10 text-center text-sm text-muted-foreground">
+              Sin resultados para los filtros seleccionados.
+            </p>
+          ) : null}
+        </div>
+
+        {/* Vista desktop: tabla */}
+        <div className="hidden overflow-x-auto md:block">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead>Código</TableHead>
+                <TableHead>Proyecto</TableHead>
+                <TableHead>Empresa</TableHead>
+                <TableHead>Responsable</TableHead>
+                <TableHead>Periodo</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead className="text-right">Presupuesto</TableHead>
+                <TableHead className="text-right">Ejecutado</TableHead>
+                <TableHead className="text-right">Avance</TableHead>
               </TableRow>
-            ))}
-            {!lista.length ? (
-              <TableRow>
-                <TableCell colSpan={9} className="py-10 text-center text-sm text-muted-foreground">
-                  Sin resultados para los filtros seleccionados.
-                </TableCell>
-              </TableRow>
-            ) : null}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {lista.map((p) => (
+                <TableRow key={p.id}>
+                  <TableCell className="font-mono text-xs">{p.codigo}</TableCell>
+                  <TableCell className="max-w-[220px] truncate">{p.nombre}</TableCell>
+                  <TableCell className="text-sm">{p.empresa}</TableCell>
+                  <TableCell className="text-sm">{p.responsable}</TableCell>
+                  <TableCell className="text-sm">
+                    {fecha(p.fechaInicio)} – {fecha(p.fechaFinal)}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{p.estado}</Badge>
+                  </TableCell>
+                  <TableCell className="text-right">{money(p.presupuesto)}</TableCell>
+                  <TableCell className="text-right">{money(p.ejecutado)}</TableCell>
+                  <TableCell className="text-right">{p.avanceFisico}%</TableCell>
+                </TableRow>
+              ))}
+              {!lista.length ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="py-10 text-center text-sm text-muted-foreground">
+                    Sin resultados para los filtros seleccionados.
+                  </TableCell>
+                </TableRow>
+              ) : null}
+            </TableBody>
+          </Table>
+        </div>
       </div>
     </div>
   );
