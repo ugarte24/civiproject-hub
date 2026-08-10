@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PageHeader, AccesoDenegado } from "@/components/AppShell";
+import { ConsultarProyectoPanel, ProyectoSeleccionadoBar } from "@/components/ConsultarProyecto";
 import { Field } from "@/components/Field";
 import { DateInput } from "@/components/DateInput";
 import { usePermisos, money, fecha, type Movimiento, type MovimientoTipo } from "@/lib/store";
@@ -101,14 +102,10 @@ function ContabilidadPage() {
   });
 
   useEffect(() => {
-    const pref =
-      search.proyecto && projects.some((p) => p.id === search.proyecto)
-        ? search.proyecto
-        : projects[0]?.id ?? "";
-    if (!form.proyectoId && pref) {
-      setForm((f) => ({ ...f, proyectoId: pref }));
+    if (search.proyecto && projects.some((p) => p.id === search.proyecto)) {
+      setForm((f) => (f.proyectoId === search.proyecto ? f : { ...f, proyectoId: search.proyecto! }));
     }
-  }, [projects, form.proyectoId, search.proyecto]);
+  }, [projects, search.proyecto]);
 
   // Si cancelan cámara/galería sin onChange, el candado queda pegado y el X no cerraba.
   useEffect(() => {
@@ -274,7 +271,13 @@ function ContabilidadPage() {
 
   const abrirNuevo = (tipo?: MovimientoTipo) => {
     resetForm();
-    setForm((f) => ({ ...f, tipo: tipo ?? tab }));
+    setForm((f) => ({
+      ...f,
+      tipo: tipo ?? tab,
+      proyectoId: search.proyecto && projects.some((p) => p.id === search.proyecto)
+        ? search.proyecto
+        : f.proyectoId,
+    }));
     setOpen(true);
   };
 
@@ -348,14 +351,26 @@ function ContabilidadPage() {
 
   if (!puedeVer("contabilidad")) return <AccesoDenegado modulo="Contabilidad" />;
 
-  const filtrados = movimientos.filter(
-    (m) => !search.proyecto || m.proyectoId === search.proyecto,
-  );
+  const proyectoId =
+    search.proyecto && projects.some((p) => p.id === search.proyecto) ? search.proyecto : "";
+  const proyecto = projects.find((p) => p.id === proyectoId);
+  const filtrados = movimientos.filter((m) => m.proyectoId === proyectoId);
   const ingresos = filtrados.filter((m) => m.tipo === "Ingreso").reduce((a, m) => a + m.monto, 0);
   const egresos = filtrados
     .filter((m) => ["Egreso", "Pago", "Factura"].includes(m.tipo))
     .reduce((a, m) => a + m.monto, 0);
-  const filtroProyecto = search.proyecto ?? "todos";
+
+  const seleccionarProyecto = (id: string) => {
+    setForm((f) => ({ ...f, proyectoId: id }));
+    void navigate({ search: { proyecto: id }, replace: true });
+  };
+
+  const cambiarProyecto = () => {
+    setOpen(false);
+    resetForm();
+    setForm((f) => ({ ...f, proyectoId: "" }));
+    void navigate({ search: { proyecto: undefined }, replace: true });
+  };
 
   return (
     <div>
@@ -364,37 +379,23 @@ function ContabilidadPage() {
         title="Contabilidad"
         description="Movimientos financieros del portafolio. Este módulo no expone planos, APU ni memorias de cálculo."
         action={
-          editable ? (
-            <Button onClick={() => abrirNuevo()} className="gap-2" disabled={!projects.length}>
+          editable && proyectoId ? (
+            <Button onClick={() => abrirNuevo()} className="gap-2">
               <Plus className="size-4" /> Nuevo movimiento
             </Button>
           ) : null
         }
       />
 
-      <div className="mb-4 max-w-xl">
-        <Select
-          value={filtroProyecto}
-          onValueChange={(v) => {
-            void navigate({
-              search: { proyecto: v === "todos" ? undefined : v },
-              replace: true,
-            });
-          }}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Filtrar por proyecto" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos los proyectos</SelectItem>
-            {projects.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.codigo} — {p.nombre}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {!proyectoId ? (
+        <ConsultarProyectoPanel
+          projects={projects}
+          hint="Escriba el código (ej. 001) o parte del nombre del proyecto para ver su contabilidad."
+          onSelect={seleccionarProyecto}
+        />
+      ) : (
+        <>
+          <ProyectoSeleccionadoBar proyecto={proyecto} onChange={cambiarProyecto} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="panel p-5">
@@ -518,9 +519,7 @@ function ContabilidadPage() {
                   })}
                   {!lista.length ? (
                     <p className="py-10 text-center text-sm text-muted-foreground">
-                      {search.proyecto
-                        ? "Sin registros de este proyecto en esta sección."
-                        : "Sin registros en esta sección."}
+                      Sin registros de este proyecto en esta sección.
                     </p>
                   ) : null}
                 </div>
@@ -608,9 +607,7 @@ function ContabilidadPage() {
                             colSpan={9}
                             className="py-10 text-center text-sm text-muted-foreground"
                           >
-                            {search.proyecto
-                        ? "Sin registros de este proyecto en esta sección."
-                        : "Sin registros en esta sección."}
+                            Sin registros de este proyecto en esta sección.
                           </TableCell>
                         </TableRow>
                       ) : null}
@@ -655,25 +652,20 @@ function ContabilidadPage() {
               {editing ? "Editar movimiento" : "Registrar movimiento"}
             </DialogTitle>
             <DialogDescription>
-              {editing
-                ? "Puede reemplazar el adjunto si lo desea."
-                : "Adjunte el respaldo digital del comprobante (opcional)."}
+              {proyecto
+                ? `${proyecto.codigo} — ${proyecto.nombre}`
+                : editing
+                  ? "Puede reemplazar el adjunto si lo desea."
+                  : "Adjunte el respaldo digital del comprobante (opcional)."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Proyecto" full error={touched ? errores["proyectoId"] : undefined}>
-              <Select value={form.proyectoId} onValueChange={(v) => set("proyectoId", v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione un proyecto" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.codigo} — {p.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Field label="Proyecto" full>
+              <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+                {proyecto
+                  ? `${proyecto.codigo} — ${proyecto.nombre}`
+                  : "—"}
+              </div>
             </Field>
             <Field label="Tipo" full>
               <Select value={form.tipo} onValueChange={(v) => set("tipo", v)}>
@@ -817,6 +809,8 @@ function ContabilidadPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </>
+      )}
     </div>
   );
 }

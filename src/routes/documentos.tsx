@@ -33,6 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PageHeader, AccesoDenegado } from "@/components/AppShell";
+import { ConsultarProyectoPanel, ProyectoSeleccionadoBar } from "@/components/ConsultarProyecto";
 import { Field } from "@/components/Field";
 import { usePermisos, fecha, type DocCategoria, type Documento } from "@/lib/store";
 import {
@@ -115,11 +116,11 @@ function DocumentosPage() {
   });
 
   useEffect(() => {
-    const pref =
-      search.proyecto && projects.some((p) => p.id === search.proyecto)
-        ? search.proyecto
-        : projects[0]?.id ?? "";
-    setForm((f) => ({ ...f, proyectoId: f.proyectoId || pref }));
+    if (search.proyecto && projects.some((p) => p.id === search.proyecto)) {
+      setForm((f) =>
+        f.proyectoId === search.proyecto ? f : { ...f, proyectoId: search.proyecto! },
+      );
+    }
   }, [projects, search.proyecto]);
 
   const mostrarArchivo = Boolean(file || (editing && !quitarArchivo));
@@ -130,12 +131,13 @@ function DocumentosPage() {
     errores["archivo"] = "Seleccione un archivo (PDF, Word, Excel, DWG o ZIP).";
   }
 
+  const proyectoId =
+    search.proyecto && projects.some((p) => p.id === search.proyecto) ? search.proyecto : "";
+  const proyecto = projects.find((p) => p.id === proyectoId);
   const lista = documentos.filter(
     (d) =>
-      (cat === "todas" || d.categoria === cat) &&
-      (!search.proyecto || d.proyectoId === search.proyecto),
+      (cat === "todas" || d.categoria === cat) && d.proyectoId === proyectoId,
   );
-  const filtroProyecto = search.proyecto ?? "todos";
 
   const clearLocalPreview = () => {
     setLocalPreviewUrl((prev) => {
@@ -156,6 +158,10 @@ function DocumentosPage() {
 
   const abrirNuevo = () => {
     resetForm();
+    setForm((f) => ({
+      ...f,
+      proyectoId: proyectoId || f.proyectoId,
+    }));
     setOpen(true);
   };
 
@@ -278,6 +284,18 @@ function DocumentosPage() {
 
   if (!puedeVer("documentos")) return <AccesoDenegado modulo="Documentos" />;
 
+  const seleccionarProyecto = (id: string) => {
+    setForm((f) => ({ ...f, proyectoId: id }));
+    void navigate({ search: { proyecto: id }, replace: true });
+  };
+
+  const cambiarProyecto = () => {
+    setOpen(false);
+    resetForm();
+    setForm((f) => ({ ...f, proyectoId: "" }));
+    void navigate({ search: { proyecto: undefined }, replace: true });
+  };
+
   const editingFileName = editing ? editing.archivo.split("/").pop() || editing.nombre : "";
   const displayFileName = file?.name || editingFileName;
   const displayPeso = file
@@ -299,37 +317,23 @@ function DocumentosPage() {
         title="Documentos"
         description="Formatos admitidos: PDF, Word, Excel, DWG y ZIP, clasificados por categoría y proyecto."
         action={
-          editable ? (
-            <Button onClick={abrirNuevo} className="gap-2" disabled={!projects.length}>
+          editable && proyectoId ? (
+            <Button onClick={abrirNuevo} className="gap-2">
               <Plus className="size-4" /> Subir Documento
             </Button>
           ) : null
         }
       />
 
-      <div className="mb-4 max-w-xl">
-        <Select
-          value={filtroProyecto}
-          onValueChange={(v) => {
-            void navigate({
-              search: { proyecto: v === "todos" ? undefined : v },
-              replace: true,
-            });
-          }}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Filtrar por proyecto" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos los proyectos</SelectItem>
-            {projects.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.codigo} — {p.nombre}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {!proyectoId ? (
+        <ConsultarProyectoPanel
+          projects={projects}
+          hint="Escriba el código (ej. 001) o parte del nombre del proyecto para ver sus documentos."
+          onSelect={seleccionarProyecto}
+        />
+      ) : (
+        <>
+          <ProyectoSeleccionadoBar proyecto={proyecto} onChange={cambiarProyecto} />
 
       <div className="mb-4 flex flex-wrap gap-2">
         <Button
@@ -458,28 +462,18 @@ function DocumentosPage() {
               {editing ? "Editar Documento" : "Subir Documento"}
             </DialogTitle>
             <DialogDescription>
-              {editing
-                ? "Actualice los metadatos. El archivo original se conserva."
-                : "Clasifique el archivo por categoría y proyecto."}
+              {proyecto
+                ? `${proyecto.codigo} — ${proyecto.nombre}`
+                : editing
+                  ? "Actualice los metadatos. El archivo original se conserva."
+                  : "Clasifique el archivo por categoría y proyecto."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Proyecto" error={touched ? errores["proyectoId"] : undefined} full>
-              <Select
-                value={form.proyectoId}
-                onValueChange={(v) => setForm((f) => ({ ...f, proyectoId: v }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.codigo} — {p.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Field label="Proyecto" full>
+              <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+                {proyecto ? `${proyecto.codigo} — ${proyecto.nombre}` : "—"}
+              </div>
             </Field>
             <Field label="Documento" error={touched ? errores["nombre"] : undefined} full>
               <Input
@@ -584,6 +578,8 @@ function DocumentosPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </>
+      )}
     </div>
   );
 }

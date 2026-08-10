@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PageHeader, AccesoDenegado } from "@/components/AppShell";
+import { ConsultarProyectoPanel, ProyectoSeleccionadoBar } from "@/components/ConsultarProyecto";
 import { Field } from "@/components/Field";
 import { DateInput } from "@/components/DateInput";
 import { usePermisos, fecha, type Actividad } from "@/lib/store";
@@ -76,12 +77,9 @@ function CronogramaPage() {
   const [touched, setTouched] = useState(false);
   const [form, setForm] = useState(formVacio);
 
-  useEffect(() => {
-    if (!proyectoId && projects[0]?.id) setProyectoId(projects[0].id);
-  }, [projects, proyectoId]);
-
   if (!puedeVer("cronograma")) return <AccesoDenegado modulo="Cronograma" />;
 
+  const proyecto = projects.find((p) => p.id === proyectoId);
   const lista = actividades.filter((a) => a.proyectoId === proyectoId);
   const inicioMin = lista.length
     ? Math.min(...lista.map((a) => new Date(a.inicio).getTime()))
@@ -112,6 +110,12 @@ function CronogramaPage() {
   const abrirNueva = () => {
     resetForm();
     setOpen(true);
+  };
+
+  const cambiarProyecto = () => {
+    setProyectoId("");
+    setOpen(false);
+    resetForm();
   };
 
   const abrirEditar = (a: Actividad) => {
@@ -160,28 +164,23 @@ function CronogramaPage() {
         title="Cronograma de obra"
         description="Vista Gantt de actividades con duración, responsable y grado de avance."
         action={
-          editable ? (
-            <Button onClick={abrirNueva} className="gap-2" disabled={!proyectoId}>
+          editable && proyectoId ? (
+            <Button onClick={abrirNueva} className="gap-2">
               <Plus className="size-4" /> Nueva actividad
             </Button>
           ) : null
         }
       />
 
-      <div className="mb-4">
-        <Select value={proyectoId} onValueChange={setProyectoId}>
-          <SelectTrigger className="w-full bg-card sm:w-[420px]">
-            <SelectValue placeholder="Seleccione un proyecto" />
-          </SelectTrigger>
-          <SelectContent>
-            {projects.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.codigo} — {p.nombre}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {!proyectoId ? (
+        <ConsultarProyectoPanel
+          projects={projects}
+          hint="Escriba el código (ej. 001) o parte del nombre del proyecto para ver su cronograma."
+          onSelect={setProyectoId}
+        />
+      ) : (
+        <>
+          <ProyectoSeleccionadoBar proyecto={proyecto} onChange={cambiarProyecto} />
 
       {/* Vista móvil: tarjetas */}
       <div className="space-y-3 md:hidden">
@@ -383,7 +382,11 @@ function CronogramaPage() {
             <DialogTitle className="font-display text-2xl tracking-wide uppercase">
               {editingId ? "Editar actividad" : "Nueva actividad"}
             </DialogTitle>
-            <DialogDescription>Programe una actividad en el cronograma del proyecto.</DialogDescription>
+            <DialogDescription>
+              {proyecto
+                ? `${proyecto.codigo} — ${proyecto.nombre}`
+                : "Seleccione un proyecto"}
+            </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Nombre" error={touched ? errores["nombre"] : undefined} full>
@@ -444,6 +447,8 @@ function CronogramaPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </>
+      )}
     </div>
   );
 }

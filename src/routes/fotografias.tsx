@@ -13,14 +13,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { PageHeader, AccesoDenegado } from "@/components/AppShell";
+import { ConsultarProyectoPanel, ProyectoSeleccionadoBar } from "@/components/ConsultarProyecto";
 import { Field } from "@/components/Field";
 import { DateInput } from "@/components/DateInput";
 import { usePermisos, fecha, type Fotografia } from "@/lib/store";
@@ -109,12 +103,12 @@ function FotografiasPage() {
   });
 
   useEffect(() => {
-    const pref = search.proyecto && projects.some((p) => p.id === search.proyecto)
-      ? search.proyecto
-      : projects[0]?.id ?? "";
     setForm((f) => ({
       ...f,
-      proyectoId: f.proyectoId || pref,
+      proyectoId:
+        search.proyecto && projects.some((p) => p.id === search.proyecto)
+          ? search.proyecto
+          : f.proyectoId,
       autor: f.autor || profile?.nombre || role,
     }));
   }, [projects, search.proyecto, profile?.nombre, role]);
@@ -125,6 +119,9 @@ function FotografiasPage() {
   if (form.descripcion.trim().length < 5) errores["descripcion"] = "Mínimo 5 caracteres.";
   if (!editing && !compressedFile) errores["imagen"] = "Seleccione una imagen.";
 
+  const proyectoId =
+    search.proyecto && projects.some((p) => p.id === search.proyecto) ? search.proyecto : "";
+  const proyecto = projects.find((p) => p.id === proyectoId);
   const onPickFile = async (file: File | undefined) => {
     if (!file) {
       pickingFileRef.current = false;
@@ -215,6 +212,11 @@ function FotografiasPage() {
 
   const abrirNuevo = () => {
     resetForm();
+    setForm((f) => ({
+      ...f,
+      proyectoId: proyectoId || f.proyectoId,
+      autor: profile?.nombre || role,
+    }));
     setOpen(true);
   };
 
@@ -271,8 +273,19 @@ function FotografiasPage() {
 
   if (!puedeVer("fotografias")) return <AccesoDenegado modulo="Fotografías" />;
 
-  const lista = fotografias.filter((f) => !search.proyecto || f.proyectoId === search.proyecto);
-  const filtroProyecto = search.proyecto ?? "todos";
+  const lista = fotografias.filter((f) => f.proyectoId === proyectoId);
+
+  const seleccionarProyecto = (id: string) => {
+    setForm((f) => ({ ...f, proyectoId: id }));
+    void navigate({ search: { proyecto: id }, replace: true });
+  };
+
+  const cambiarProyecto = () => {
+    setOpen(false);
+    resetForm();
+    setForm((f) => ({ ...f, proyectoId: "" }));
+    void navigate({ search: { proyecto: undefined }, replace: true });
+  };
 
   return (
     <div>
@@ -281,37 +294,23 @@ function FotografiasPage() {
         title="Fotografías"
         description="Evidencia fotográfica del avance físico (imágenes comprimidas automáticamente)."
         action={
-          editable ? (
-            <Button onClick={abrirNuevo} className="gap-2" disabled={!projects.length}>
+          editable && proyectoId ? (
+            <Button onClick={abrirNuevo} className="gap-2">
               <Plus className="size-4" /> Nueva Fotografía
             </Button>
           ) : null
         }
       />
 
-      <div className="mb-4 max-w-xl">
-        <Select
-          value={filtroProyecto}
-          onValueChange={(v) => {
-            void navigate({
-              search: { proyecto: v === "todos" ? undefined : v },
-              replace: true,
-            });
-          }}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Filtrar por proyecto" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos los proyectos</SelectItem>
-            {projects.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.codigo} — {p.nombre}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {!proyectoId ? (
+        <ConsultarProyectoPanel
+          projects={projects}
+          hint="Escriba el código (ej. 001) o parte del nombre del proyecto para ver sus fotografías."
+          onSelect={seleccionarProyecto}
+        />
+      ) : (
+        <>
+          <ProyectoSeleccionadoBar proyecto={proyecto} onChange={cambiarProyecto} />
 
       {isLoading || loadingProj ? (
         <p className="text-sm text-muted-foreground">Cargando fotografías…</p>
@@ -323,7 +322,7 @@ function FotografiasPage() {
             <div className="relative flex aspect-video items-center justify-center bg-muted">
               <FotoImg path={f.imagen} alt={f.descripcion} />
               <Badge variant="outline" className="absolute top-3 left-3 bg-card">
-                {projects.find((p) => p.id === f.proyectoId)?.codigo ?? "—"}
+                {proyecto?.codigo ?? "—"}
               </Badge>
             </div>
             <figcaption className="p-4">
@@ -364,9 +363,7 @@ function FotografiasPage() {
         ))}
         {!isLoading && !lista.length ? (
           <p className="text-sm text-muted-foreground sm:col-span-2 xl:col-span-3">
-            {search.proyecto
-              ? "No hay fotografías para este proyecto."
-              : "Aún no hay fotografías. Suba la primera evidencia de avance."}
+            No hay fotografías para este proyecto. Suba la primera evidencia de avance.
           </p>
         ) : null}
       </div>
@@ -404,28 +401,18 @@ function FotografiasPage() {
               {editing ? "Editar Fotografía" : "Nueva Fotografía"}
             </DialogTitle>
             <DialogDescription>
-              {editing
-                ? "Actualice fecha y descripción. La imagen se conserva."
-                : "La imagen se comprime automáticamente antes de guardarla."}
+              {proyecto
+                ? `${proyecto.codigo} — ${proyecto.nombre}`
+                : editing
+                  ? "Actualice fecha y descripción. La imagen se conserva."
+                  : "La imagen se comprime automáticamente antes de guardarla."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Proyecto" full error={touched ? errores["proyectoId"] : undefined}>
-              <Select
-                value={form.proyectoId}
-                onValueChange={(v) => setForm((f) => ({ ...f, proyectoId: v }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.codigo} — {p.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Field label="Proyecto" full>
+              <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+                {proyecto ? `${proyecto.codigo} — ${proyecto.nombre}` : "—"}
+              </div>
             </Field>
             <Field label="Fecha" error={touched ? errores["fecha"] : undefined}>
               <DateInput
@@ -531,6 +518,8 @@ function FotografiasPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </>
+      )}
     </div>
   );
 }
